@@ -35,6 +35,20 @@ impl CardBackgroundPreset {
             Self::DeepCyberViolet => "Cyber Violet",
         }
     }
+
+    pub fn display_name_lang(&self, is_vi: bool) -> &'static str {
+        if !is_vi { return self.display_name(); }
+        match self {
+            Self::CustomImage => "Ảnh tùy chỉnh",
+            Self::MatteBlack => "Đen nhám Obsidian",
+            Self::OceanNavy => "Xanh Navy (Ocean Navy)",
+            Self::BrushedGold => "Vàng kim loại (Brushed Gold)",
+            Self::EmeraldLuxury => "Xanh ngọc lục bảo (Emerald)",
+            Self::TitaniumMinimal => "Titanium tối giản",
+            Self::CrimsonVelvet => "Đỏ nhung (Crimson Velvet)",
+            Self::DeepCyberViolet => "Tím Cyber Violet",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
@@ -59,6 +73,18 @@ impl LogoBadgeStyle {
             Self::SubtleGlow => "Subtle Glow",
         }
     }
+
+    pub fn display_name_lang(&self, is_vi: bool) -> &'static str {
+        if !is_vi { return self.display_name(); }
+        match self {
+            Self::Transparent => "Trong suốt (Không khung)",
+            Self::ThinOutline => "Viền mỏng (Thin Outline)",
+            Self::FrostedGlass => "Kính mờ (Frosted Glass)",
+            Self::SolidDark => "Khung tối (Solid Dark)",
+            Self::SolidLight => "Khung sáng (Solid Light)",
+            Self::SubtleGlow => "Phát sáng nhẹ (Subtle Glow)",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
@@ -81,6 +107,17 @@ impl LogoColorTheme {
             Self::StealthBlack => "Stealth Black",
         }
     }
+
+    pub fn display_name_lang(&self, is_vi: bool) -> &'static str {
+        if !is_vi { return self.display_name(); }
+        match self {
+            Self::Original => "Màu thương hiệu gốc",
+            Self::MonochromeWhite => "Trắng đơn sắc (Monochrome White)",
+            Self::LuxuryGold => "Vàng kim loại (Luxury Gold)",
+            Self::SilverPlatinum => "Bạch kim (Silver Platinum)",
+            Self::StealthBlack => "Đen Stealth Black",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
@@ -101,6 +138,16 @@ impl EmbossStyle {
             Self::StealthDark => "Stealth Dark (Flat)",
         }
     }
+
+    pub fn display_name_lang(&self, is_vi: bool) -> &'static str {
+        if !is_vi { return self.display_name(); }
+        match self {
+            Self::EmbossedSilver => "Bạc ánh kim 3D (Embossed Silver)",
+            Self::EmbossedGold => "Vàng ánh kim 3D (Embossed Gold)",
+            Self::CrispWhite => "Trắng phẳng (Crisp White)",
+            Self::StealthDark => "Đen tối (Stealth Dark)",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
@@ -119,6 +166,16 @@ impl TextBackdropStyle {
             Self::FrostedGlassStrip => "Frosted Glass Strip",
             Self::SubtleDarkGradient => "Dark Gradient Scrim",
             Self::FrostedPills => "Frosted Glass Pills",
+        }
+    }
+
+    pub fn display_name_lang(&self, is_vi: bool) -> &'static str {
+        if !is_vi { return self.display_name(); }
+        match self {
+            Self::None => "Không (Bóng mờ tự nhiên)",
+            Self::FrostedGlassStrip => "Thanh kính mờ (Frosted Glass Strip)",
+            Self::SubtleDarkGradient => "Dải chuyển màu tối (Dark Gradient)",
+            Self::FrostedPills => "Khung kính mờ (Frosted Pills)",
         }
     }
 }
@@ -172,6 +229,18 @@ impl PaymentNetwork {
             Self::Custom => "Custom Logo (Uploaded)",
         }
     }
+
+    pub fn display_name_lang(&self, is_vi: bool) -> &'static str {
+        if !is_vi { return self.display_name(); }
+        match self {
+            Self::None => "Không",
+            Self::Visa => "Visa",
+            Self::Mastercard => "Mastercard",
+            Self::Napas => "Napas",
+            Self::Jcb => "JCB",
+            Self::Custom => "Logo riêng (Upload)",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
@@ -190,6 +259,16 @@ impl CardFinish {
             Self::MetallicSheen => "Metallic Specular Sheen",
             Self::CarbonWeave => "Carbon Fiber Weave",
             Self::CustomTexture => "Custom Texture / Foil (Upload)",
+        }
+    }
+
+    pub fn display_name_lang(&self, is_vi: bool) -> &'static str {
+        if !is_vi { return self.display_name(); }
+        match self {
+            Self::Standard => "Nhám tiêu chuẩn (Standard Matte)",
+            Self::MetallicSheen => "Ánh kim loại (Metallic Sheen)",
+            Self::CarbonWeave => "Vân sợi Carbon (Carbon Weave)",
+            Self::CustomTexture => "Texture / Foil riêng (Upload)",
         }
     }
 }
