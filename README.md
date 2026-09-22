@@ -1,7 +1,8 @@
 # AirCard-CMaku 🎴
 
 > **Customized Apple Wallet Card Skinner & Lockscreen Passcode Themer for iOS 18+ (No Jailbreak Required)**  
-> Native Windows Rust client modded by **SirMaku**, originally ported by **Lumid-Off**. Powered by the `airlift` AirTraffic sync exploit.
+> Native Windows Rust client modded by **SirMaku**, originally ported by **Lumid-Off**. Powered by the `airlift` AirTraffic sync exploit.  
+> 🔗 **Original Upstream Repository**: [Lumid-Off/AirCard-Windows](https://github.com/Lumid-Off/AirCard-Windows?tab=MIT-1-ov-file)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-0078D6.svg)]()
@@ -11,11 +12,11 @@
 
 ## 📢 Project Notice & Disclaimer (Lưu Ý Quan Trọng)
 
-- 🎮 **For Fun Project**: Đây là dự án phi thương mại được thực hiện hoàn toàn vì mục đích học tập, giải trí và sáng tạo cá nhân. Nên dự án có thể sẽ bị bỏ dỡ bất cứ lúc nào. (**For fun / Non-commercial**).
+- 🎮 **For Fun Project**: Đây là dự án phi thương mại được thực hiện hoàn toàn vì mục đích học tập, giải trí và sáng tạo cá nhân. Nên dự án có thể sẽ bị bỏ dở bất cứ lúc nào. (**For fun / Non-commercial**).
 - 🤖 **AI-Assisted Mod**: Dự án phiên bản tùy biến này được thực hiện và hoàn thiện với sự trợ giúp của **AI (Google Antigravity / Gemini 3.8 Flash)** kết hợp cùng ý tưởng và định hướng của **SirMaku**.
 - 🎯 **Phạm Vi Tùy Biến (Scope of Customization)**:
   - **SirMaku CHỈ tập trung tùy biến và mở rộng các tính năng liên quan đến Apple Pay / Apple Wallet Card Studio** (tạo hiệu ứng đa lớp, upload texture/foil, upload custom EMV chip, căn chỉnh logo và giải quyết xung đột điều khiển preview).
-  - **Tất cả các thành phần kỹ thuật cốt lõi khác** (như exploit AirTraffic sync irlift, cơ chế kết nối thiết bị qua USB usbmuxd, sao lưu/phục hồi snapshot qua Books, và tính năng cài đặt giao diện bàn phím Passcode passthm) **KHÔNG bị can thiệp nhiều và hoàn toàn mang tính kế thừa nguyên bản từ dự án của tác giả gốc ([@Lumid-Off](https://github.com/Lumid-Off)) cùng các tác giả tiền nhiệm ([@mak5er](https://github.com/mak5er), [0xjohnny](https://github.com/0xjohnnydev))**.
+  - **Tất cả các thành phần kỹ thuật cốt lõi khác** (như exploit AirTraffic sync airlift, cơ chế kết nối thiết bị qua USB usbmuxd, sao lưu/phục hồi snapshot qua Books, và tính năng cài đặt giao diện bàn phím Passcode passthm) **KHÔNG bị can thiệp nhiều và hoàn toàn mang tính kế thừa nguyên bản từ dự án gốc ([Lumid-Off/AirCard-Windows](https://github.com/Lumid-Off/AirCard-Windows?tab=MIT-1-ov-file)) của tác giả ([@Lumid-Off](https://github.com/Lumid-Off)) cùng các tác giả tiền nhiệm ([@mak5er](https://github.com/mak5er), [0xjohnny](https://github.com/0xjohnnydev))**.
 
 - 📜 **Mã Nguồn Mở & Giấy Phép (Open Source & Free to Use)**:
   - Dự án hoàn toàn miễn phí và mở mã nguồn (MIT License). Bạn được tự do tải về, tham khảo, sử dụng và chỉnh sửa code theo ý muốn.
@@ -26,7 +27,7 @@
 ### 🌐 English Summary & Customization Scope Notice
 
 - 🎯 **Customization Scope**: SirMaku **ONLY** customized and enhanced features related to **Apple Pay / Apple Wallet (Card Studio)** (interactive multi-layer studio, custom texture/foil finishes, custom EMV chip upload & positioning, layer alignment engine, and live card preview).
-- ⚙️ **Core Exploit & Inheritance**: All other core technical mechanisms — including the AirTraffic sync sandbox escape (`airlift`), USB device communication (`usbmuxd`), Books snapshot backup/restore, and Passcode theming (`passthm`) — were **NOT** heavily modified and are directly inherited from the original upstream project by **[@Lumid-Off](https://github.com/Lumid-Off)** and upstream contributors (**[@mak5er](https://github.com/mak5er)**, **[0xjohnny](https://github.com/0xjohnnydev)**).
+- ⚙️ **Core Exploit & Inheritance**: All other core technical mechanisms — including the AirTraffic sync sandbox escape (`airlift`), USB device communication (`usbmuxd`), Books snapshot backup/restore, and Passcode theming (`passthm`) — were **NOT** heavily modified and are directly inherited from the original upstream project ([Lumid-Off/AirCard-Windows](https://github.com/Lumid-Off/AirCard-Windows?tab=MIT-1-ov-file)) by **[@Lumid-Off](https://github.com/Lumid-Off)** and upstream contributors (**[@mak5er](https://github.com/mak5er)**, **[0xjohnny](https://github.com/0xjohnnydev)**).
 - 🎮 **For Fun / Non-commercial**: This is a non-commercial, hobbyist project created for fun, learning, and personalization.
 - 🤖 **AI-Assisted**: Development was assisted by AI (**Google Antigravity / Gemini**).
 - 📜 **Attribution Requirement**: Free and open source under MIT License. Attribution to both the original author (**[@Lumid-Off](https://github.com/Lumid-Off)**) and customizer (**[@SirMaku](https://github.com/SirMaku-git)**) is strictly required upon any redistribution or modification.
@@ -139,7 +140,7 @@ File thực thi sau khi biên dịch nằm tại: `target\release\AirCard-cmaku.
 ## 👥 Contributors & Credits
 
 ### Contributors
-- **[@Lumid-Off](https://github.com/Lumid-Off)** (Windows Native Rust Port & Maintainer) — [GitHub](https://github.com/Lumid-Off) · [Twitter / X](https://x.com/LumidOff)
+- **[@Lumid-Off](https://github.com/Lumid-Off)** (Windows Native Rust Port & Maintainer) — [Official Repository: Lumid-Off/AirCard-Windows](https://github.com/Lumid-Off/AirCard-Windows?tab=MIT-1-ov-file) · [GitHub Profile](https://github.com/Lumid-Off) · [Twitter / X](https://x.com/LumidOff)
 - **[@mak5er](https://github.com/mak5er)** (Original macOS App & Exploit Research) — [GitHub](https://github.com/mak5er) · [Twitter / X](https://x.com/mak5er)
 - **[AirLift](https://github.com/0xjohnnydev/airlift)** by **[0xjohnny (@0xjohnnydev)](https://github.com/0xjohnnydev)**: Original AirTraffic/ATAirlock sandbox escape & proof of concept underlying `AirliftFFI`.
 - **[@SirMaku](https://github.com/SirMaku-git)** (Customizer): Thiết kế và phát triển Card Studio Đa Tầng, Custom Texture & Foil upload, Custom EMV Chip engine, layer alignment, và UI Sources.
