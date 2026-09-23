@@ -12,16 +12,17 @@ mod passthm;
 mod scanner;
 
 fn main() -> eframe::Result<()> {
+    let app_title = format!("AirCard-CMaku v{}", env!("CARGO_PKG_VERSION"));
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([960.0, 620.0])
             .with_min_inner_size([850.0, 560.0])
-            .with_title("AIrCard-CMaku v1.2.2"),
+            .with_title(&app_title),
         ..Default::default()
     };
 
     eframe::run_native(
-        "AIrCard-CMaku v1.2.2",
+        &app_title,
         options,
         Box::new(|cc| Ok(Box::new(app::AirCardApp::new(cc)))),
     )

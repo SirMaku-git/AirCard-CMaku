@@ -35,6 +35,20 @@ impl CardBackgroundPreset {
             Self::DeepCyberViolet => "Cyber Violet",
         }
     }
+
+    pub fn display_name_lang(&self, is_vi: bool) -> &'static str {
+        if !is_vi { return self.display_name(); }
+        match self {
+            Self::CustomImage => "Ảnh tùy chỉnh",
+            Self::MatteBlack => "Đen nhám Obsidian",
+            Self::OceanNavy => "Xanh Navy (Ocean Navy)",
+            Self::BrushedGold => "Vàng kim loại (Brushed Gold)",
+            Self::EmeraldLuxury => "Xanh ngọc lục bảo (Emerald)",
+            Self::TitaniumMinimal => "Titanium tối giản",
+            Self::CrimsonVelvet => "Đỏ nhung (Crimson Velvet)",
+            Self::DeepCyberViolet => "Tím Cyber Violet",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
@@ -59,6 +73,18 @@ impl LogoBadgeStyle {
             Self::SubtleGlow => "Subtle Glow",
         }
     }
+
+    pub fn display_name_lang(&self, is_vi: bool) -> &'static str {
+        if !is_vi { return self.display_name(); }
+        match self {
+            Self::Transparent => "Trong suốt (Không khung)",
+            Self::ThinOutline => "Viền mỏng (Thin Outline)",
+            Self::FrostedGlass => "Kính mờ (Frosted Glass)",
+            Self::SolidDark => "Khung tối (Solid Dark)",
+            Self::SolidLight => "Khung sáng (Solid Light)",
+            Self::SubtleGlow => "Phát sáng nhẹ (Subtle Glow)",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
@@ -81,6 +107,17 @@ impl LogoColorTheme {
             Self::StealthBlack => "Stealth Black",
         }
     }
+
+    pub fn display_name_lang(&self, is_vi: bool) -> &'static str {
+        if !is_vi { return self.display_name(); }
+        match self {
+            Self::Original => "Màu thương hiệu gốc",
+            Self::MonochromeWhite => "Trắng đơn sắc (Monochrome White)",
+            Self::LuxuryGold => "Vàng kim loại (Luxury Gold)",
+            Self::SilverPlatinum => "Bạch kim (Silver Platinum)",
+            Self::StealthBlack => "Đen Stealth Black",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
@@ -101,6 +138,16 @@ impl EmbossStyle {
             Self::StealthDark => "Stealth Dark (Flat)",
         }
     }
+
+    pub fn display_name_lang(&self, is_vi: bool) -> &'static str {
+        if !is_vi { return self.display_name(); }
+        match self {
+            Self::EmbossedSilver => "Bạc ánh kim 3D (Embossed Silver)",
+            Self::EmbossedGold => "Vàng ánh kim 3D (Embossed Gold)",
+            Self::CrispWhite => "Trắng phẳng (Crisp White)",
+            Self::StealthDark => "Đen tối (Stealth Dark)",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
@@ -119,6 +166,16 @@ impl TextBackdropStyle {
             Self::FrostedGlassStrip => "Frosted Glass Strip",
             Self::SubtleDarkGradient => "Dark Gradient Scrim",
             Self::FrostedPills => "Frosted Glass Pills",
+        }
+    }
+
+    pub fn display_name_lang(&self, is_vi: bool) -> &'static str {
+        if !is_vi { return self.display_name(); }
+        match self {
+            Self::None => "Không (Bóng mờ tự nhiên)",
+            Self::FrostedGlassStrip => "Thanh kính mờ (Frosted Glass Strip)",
+            Self::SubtleDarkGradient => "Dải chuyển màu tối (Dark Gradient)",
+            Self::FrostedPills => "Khung kính mờ (Frosted Pills)",
         }
     }
 }
@@ -172,6 +229,18 @@ impl PaymentNetwork {
             Self::Custom => "Custom Logo (Uploaded)",
         }
     }
+
+    pub fn display_name_lang(&self, is_vi: bool) -> &'static str {
+        if !is_vi { return self.display_name(); }
+        match self {
+            Self::None => "Không",
+            Self::Visa => "Visa",
+            Self::Mastercard => "Mastercard",
+            Self::Napas => "Napas",
+            Self::Jcb => "JCB",
+            Self::Custom => "Logo riêng (Upload)",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
@@ -192,6 +261,16 @@ impl CardFinish {
             Self::CustomTexture => "Custom Texture / Foil (Upload)",
         }
     }
+
+    pub fn display_name_lang(&self, is_vi: bool) -> &'static str {
+        if !is_vi { return self.display_name(); }
+        match self {
+            Self::Standard => "Nhám tiêu chuẩn (Standard Matte)",
+            Self::MetallicSheen => "Ánh kim loại (Metallic Sheen)",
+            Self::CarbonWeave => "Vân sợi Carbon (Carbon Weave)",
+            Self::CustomTexture => "Texture / Foil riêng (Upload)",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -199,6 +278,7 @@ pub struct ImageTransform {
     pub zoom: f32,
     pub pan_x: f32,
     pub pan_y: f32,
+    pub rotation: f32,
 }
 
 impl Default for ImageTransform {
@@ -207,6 +287,30 @@ impl Default for ImageTransform {
             zoom: 1.0,
             pan_x: 0.0,
             pan_y: 0.0,
+            rotation: 0.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LayerAdjustments {
+    pub rotation: f32,
+    pub opacity: f32,
+    pub tint_color: [u8; 3],
+    pub tint_amount: f32,
+    pub hue_shift: f32,
+    pub saturation: f32,
+}
+
+impl Default for LayerAdjustments {
+    fn default() -> Self {
+        Self {
+            rotation: 0.0,
+            opacity: 1.0,
+            tint_color: [255, 255, 255],
+            tint_amount: 0.0,
+            hue_shift: 0.0,
+            saturation: 1.0,
         }
     }
 }
@@ -222,6 +326,13 @@ pub struct CardOverlayOptions {
     pub finish: CardFinish,
     pub details: CardDetails,
     pub transform: ImageTransform,
+    // Layer Adjustments (Color Tint, Opacity, Hue, Saturation, Rotation)
+    pub bg_adj: LayerAdjustments,
+    pub finish_adj: LayerAdjustments,
+    pub chip_adj: LayerAdjustments,
+    pub wave_adj: LayerAdjustments,
+    pub logo_adj: LayerAdjustments,
+    pub details_adj: LayerAdjustments,
     // Custom Finish Controls
     pub finish_x: f32,
     pub finish_y: f32,
@@ -231,6 +342,10 @@ pub struct CardOverlayOptions {
     pub chip_x: f32,
     pub chip_y: f32,
     pub chip_scale: f32,
+    // Contactless Wave (Shockwave) Controls
+    pub wave_x: f32,
+    pub wave_y: f32,
+    pub wave_scale: f32,
     // Custom Logo Controls
     pub logo_x: f32,
     pub logo_y: f32,
@@ -249,6 +364,12 @@ impl Default for CardOverlayOptions {
             finish: CardFinish::Standard,
             details: CardDetails::default(),
             transform: ImageTransform::default(),
+            bg_adj: LayerAdjustments::default(),
+            finish_adj: LayerAdjustments::default(),
+            chip_adj: LayerAdjustments::default(),
+            wave_adj: LayerAdjustments::default(),
+            logo_adj: LayerAdjustments::default(),
+            details_adj: LayerAdjustments::default(),
             finish_x: 0.0,
             finish_y: 0.0,
             finish_scale: 1.0,
@@ -256,6 +377,9 @@ impl Default for CardOverlayOptions {
             chip_x: 140.0,
             chip_y: 340.0,
             chip_scale: 1.0,
+            wave_x: 375.0,
+            wave_y: 375.0,
+            wave_scale: 1.0,
             logo_x: 1215.0,
             logo_y: 812.0,
             logo_scale: 1.0,
@@ -270,6 +394,7 @@ pub struct PreparedSkin {
     pub preview: egui::ColorImage,
     pub source_width: u32,
     pub source_height: u32,
+    pub rgba: RgbaImage,
 }
 
 #[allow(dead_code)]
@@ -300,23 +425,18 @@ impl PreparedSkin {
         Self::from_preset_or_image_with_assets(maybe_image, options, custom_logo, None, None)
     }
 
-    pub fn from_preset_or_image_with_assets(
-        maybe_image: Option<DynamicImage>,
+    pub fn render_preview_canvas(
+        maybe_image: Option<&DynamicImage>,
         options: &CardOverlayOptions,
         custom_logo: Option<&RgbaImage>,
         custom_chip: Option<&RgbaImage>,
         custom_finish: Option<&RgbaImage>,
-    ) -> Result<Self> {
-        let (source_width, source_height) = if let Some(ref img) = maybe_image {
-            img.dimensions()
-        } else {
-            (CARD_WIDTH, CARD_HEIGHT)
-        };
-
+    ) -> Result<(RgbaImage, egui::ColorImage)> {
         let mut rgba = generate_card_preset_canvas(
             options.bg_preset,
-            maybe_image.as_ref(),
+            maybe_image,
             options.transform,
+            &options.bg_adj,
         );
 
         // 1. Apply surface finish effects (including Custom Texture if uploaded)
@@ -330,15 +450,22 @@ impl PreparedSkin {
                 options.chip_x,
                 options.chip_y,
                 options.chip_scale,
+                &options.chip_adj,
             );
         }
 
-        // 3. Draw Contactless Waves
+        // 3. Draw Contactless Waves (Shockwave) with position, scale, and rotation
         if options.show_contactless {
-            draw_contactless_wave(&mut rgba);
+            draw_contactless_wave(
+                &mut rgba,
+                options.wave_x,
+                options.wave_y,
+                options.wave_scale,
+                &options.wave_adj,
+            );
         }
 
-        // 4. Draw Payment Network Brand Badge with Frame, Color Theme, and custom position/scale
+        // 4. Draw Payment Network Brand Badge with Frame, Color Theme, and custom position/scale/rotation
         if options.network != PaymentNetwork::None {
             draw_payment_network(
                 &mut rgba,
@@ -349,12 +476,13 @@ impl PreparedSkin {
                 options.logo_x,
                 options.logo_y,
                 options.logo_scale,
+                &options.logo_adj,
             );
         }
 
         // 5. Draw Card Details (Embossed numbers, cardholder, expiry, bank name)
         if options.details.show_details {
-            draw_card_details(&mut rgba, &options.details);
+            draw_card_details(&mut rgba, &options.details, &options.details_adj);
         }
 
         // 6. Clip Card to authentic ISO 7810 rounded corners (Anti-aliased)
@@ -365,12 +493,41 @@ impl PreparedSkin {
             rgba.as_raw(),
         );
 
+        Ok((rgba, preview))
+    }
+
+    pub fn encode_skin_png_and_pdf(rgba: &RgbaImage) -> Result<(Vec<u8>, Vec<u8>)> {
         let mut png = Vec::new();
-        DynamicImage::ImageRgba8(rgba)
+        DynamicImage::ImageRgba8(rgba.clone())
             .write_to(&mut Cursor::new(&mut png), ImageFormat::Png)
             .context("Could not encode prepared PNG")?;
 
         let pdf = png_to_pdf(&png).context("Could not generate card PDF artwork")?;
+        Ok((png, pdf))
+    }
+
+    pub fn from_preset_or_image_with_assets(
+        maybe_image: Option<DynamicImage>,
+        options: &CardOverlayOptions,
+        custom_logo: Option<&RgbaImage>,
+        custom_chip: Option<&RgbaImage>,
+        custom_finish: Option<&RgbaImage>,
+    ) -> Result<Self> {
+        let (source_width, source_height) = if let Some(ref img) = maybe_image {
+            img.dimensions()
+        } else {
+            (CARD_WIDTH, CARD_HEIGHT)
+        };
+
+        let (rgba, preview) = Self::render_preview_canvas(
+            maybe_image.as_ref(),
+            options,
+            custom_logo,
+            custom_chip,
+            custom_finish,
+        )?;
+
+        let (png, pdf) = Self::encode_skin_png_and_pdf(&rgba)?;
 
         Ok(Self {
             png,
@@ -378,6 +535,7 @@ impl PreparedSkin {
             preview,
             source_width,
             source_height,
+            rgba,
         })
     }
 }
@@ -534,6 +692,7 @@ fn draw_rounded_rect_outline(
 pub fn render_transformed_custom_image(
     image: &DynamicImage,
     transform: ImageTransform,
+    bg_adj: &LayerAdjustments,
 ) -> RgbaImage {
     let (src_w, src_h) = image.dimensions();
     if src_w == 0 || src_h == 0 {
@@ -547,80 +706,80 @@ pub fn render_transformed_custom_image(
     let scale0 = (CARD_WIDTH as f32 / src_w as f32).max(CARD_HEIGHT as f32 / src_h as f32);
     let scale = scale0 * zoom;
 
-    let dest_w = src_w as f32 * scale;
-    let dest_h = src_h as f32 * scale;
-
-    let offset_x = (CARD_WIDTH as f32 - dest_w) * 0.5 + transform.pan_x;
-    let offset_y = (CARD_HEIGHT as f32 - dest_h) * 0.5 + transform.pan_y;
-
-    let x_min = (offset_x.floor() as i32).clamp(0, CARD_WIDTH as i32) as u32;
-    let x_max = ((offset_x + dest_w).ceil() as i32).clamp(0, CARD_WIDTH as i32) as u32;
-    let y_min = (offset_y.floor() as i32).clamp(0, CARD_HEIGHT as i32) as u32;
-    let y_max = ((offset_y + dest_h).ceil() as i32).clamp(0, CARD_HEIGHT as i32) as u32;
-
-    if x_min >= x_max || y_min >= y_max {
-        return dest;
-    }
-
     let inv_scale = 1.0 / scale;
     let src_raw = src_rgba.as_raw();
     let stride = src_w as usize * 4;
     let max_x_idx = src_w - 1;
     let max_y_idx = src_h - 1;
 
-    for y in y_min..y_max {
-        let dy = (y as f32 + 0.5) - offset_y;
-        let sy = dy * inv_scale - 0.5;
-        let sy_clamped = sy.clamp(0.0, max_y_idx as f32);
-        let y0 = sy_clamped.floor() as u32;
-        let y1 = (y0 + 1).min(max_y_idx);
-        let fy = sy_clamped - y0 as f32;
-        let inv_fy = 1.0 - fy;
+    let center_x = CARD_WIDTH as f32 * 0.5 + transform.pan_x;
+    let center_y = CARD_HEIGHT as f32 * 0.5 + transform.pan_y;
+    let src_cx = src_w as f32 * 0.5;
+    let src_cy = src_h as f32 * 0.5;
 
-        let row0 = y0 as usize * stride;
-        let row1 = y1 as usize * stride;
+    let total_rot = transform.rotation + bg_adj.rotation;
+    let rad = (-total_rot).to_radians();
+    let cos_r = rad.cos();
+    let sin_r = rad.sin();
 
-        for x in x_min..x_max {
-            let dx = (x as f32 + 0.5) - offset_x;
-            let sx = dx * inv_scale - 0.5;
+    for y in 0..CARD_HEIGHT {
+        let dy = y as f32 + 0.5 - center_y;
+        for x in 0..CARD_WIDTH {
+            let dx = x as f32 + 0.5 - center_x;
+            let rx = dx * cos_r - dy * sin_r;
+            let ry = dx * sin_r + dy * cos_r;
+
+            let sx = rx * inv_scale + src_cx;
+            let sy = ry * inv_scale + src_cy;
+
+            if sx < 0.0 || sx > max_x_idx as f32 || sy < 0.0 || sy > max_y_idx as f32 {
+                continue;
+            }
+
             let sx_clamped = sx.clamp(0.0, max_x_idx as f32);
+            let sy_clamped = sy.clamp(0.0, max_y_idx as f32);
             let x0 = sx_clamped.floor() as u32;
             let x1 = (x0 + 1).min(max_x_idx);
+            let y0 = sy_clamped.floor() as u32;
+            let y1 = (y0 + 1).min(max_y_idx);
+
             let fx = sx_clamped - x0 as f32;
+            let fy = sy_clamped - y0 as f32;
             let inv_fx = 1.0 - fx;
+            let inv_fy = 1.0 - fy;
 
             let w00 = inv_fx * inv_fy;
             let w10 = fx * inv_fy;
             let w01 = inv_fx * fy;
             let w11 = fx * fy;
 
+            let row0 = y0 as usize * stride;
+            let row1 = y1 as usize * stride;
+
             let idx00 = row0 + x0 as usize * 4;
             let idx10 = row0 + x1 as usize * 4;
             let idx01 = row1 + x0 as usize * 4;
             let idx11 = row1 + x1 as usize * 4;
 
-            let r = (src_raw[idx00] as f32 * w00
+            let r = src_raw[idx00] as f32 * w00
                 + src_raw[idx10] as f32 * w10
                 + src_raw[idx01] as f32 * w01
-                + src_raw[idx11] as f32 * w11)
-                .round() as u8;
-            let g = (src_raw[idx00 + 1] as f32 * w00
+                + src_raw[idx11] as f32 * w11;
+            let g = src_raw[idx00 + 1] as f32 * w00
                 + src_raw[idx10 + 1] as f32 * w10
                 + src_raw[idx01 + 1] as f32 * w01
-                + src_raw[idx11 + 1] as f32 * w11)
-                .round() as u8;
-            let b = (src_raw[idx00 + 2] as f32 * w00
+                + src_raw[idx11 + 1] as f32 * w11;
+            let b = src_raw[idx00 + 2] as f32 * w00
                 + src_raw[idx10 + 2] as f32 * w10
                 + src_raw[idx01 + 2] as f32 * w01
-                + src_raw[idx11 + 2] as f32 * w11)
-                .round() as u8;
-            let a = (src_raw[idx00 + 3] as f32 * w00
+                + src_raw[idx11 + 2] as f32 * w11;
+            let a = src_raw[idx00 + 3] as f32 * w00
                 + src_raw[idx10 + 3] as f32 * w10
                 + src_raw[idx01 + 3] as f32 * w01
-                + src_raw[idx11 + 3] as f32 * w11)
-                .round() as u8;
+                + src_raw[idx11 + 3] as f32 * w11;
 
-            dest.put_pixel(x, y, Rgba([r, g, b, a]));
+            let (out_r, out_g, out_b, out_a) = apply_adjustments_to_color(r, g, b, a, bg_adj, LogoColorTheme::Original);
+            dest.put_pixel(x, y, Rgba([out_r, out_g, out_b, out_a]));
         }
     }
 
@@ -631,13 +790,14 @@ pub fn generate_card_preset_canvas(
     preset: CardBackgroundPreset,
     maybe_image: Option<&DynamicImage>,
     transform: ImageTransform,
+    bg_adj: &LayerAdjustments,
 ) -> RgbaImage {
     let mut img = RgbaImage::new(CARD_WIDTH, CARD_HEIGHT);
 
     match preset {
         CardBackgroundPreset::CustomImage => {
             if let Some(custom) = maybe_image {
-                return render_transformed_custom_image(custom, transform);
+                return render_transformed_custom_image(custom, transform, bg_adj);
             } else {
                 // Default dark minimalist card canvas if no image has been loaded yet
                 for y in 0..CARD_HEIGHT {
@@ -766,6 +926,13 @@ pub fn generate_card_preset_canvas(
         }
     }
 
+    if bg_adj.tint_amount > 0.001 || bg_adj.hue_shift != 0.0 || (bg_adj.saturation - 1.0).abs() > 0.001 || bg_adj.opacity < 0.999 {
+        for p in img.pixels_mut() {
+            let (r, g, b, a) = apply_adjustments_to_color(p[0] as f32, p[1] as f32, p[2] as f32, p[3] as f32, bg_adj, LogoColorTheme::Original);
+            *p = Rgba([r, g, b, a]);
+        }
+    }
+
     img
 }
 
@@ -781,6 +948,236 @@ const ASSET_CONTACTLESS: &[u8] = include_bytes!("assets/contactless.png");
 const ASSET_CARD_OCR: &[u8] = include_bytes!("assets/card_ocr.ttf");
 const ASSET_CARD_SANS: &[u8] = include_bytes!("assets/card_sans.ttf");
 
+fn rgb_to_hsv(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
+    let max = r.max(g).max(b);
+    let min = r.min(g).min(b);
+    let delta = max - min;
+    let h = if delta == 0.0 {
+        0.0
+    } else if max == r {
+        60.0 * (((g - b) / delta).rem_euclid(6.0))
+    } else if max == g {
+        60.0 * (((b - r) / delta) + 2.0)
+    } else {
+        60.0 * (((r - g) / delta) + 4.0)
+    };
+    let s = if max == 0.0 { 0.0 } else { delta / max };
+    let v = max / 255.0;
+    (h, s, v)
+}
+
+fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (f32, f32, f32) {
+    let c = v * s;
+    let h_prime = (h.rem_euclid(360.0)) / 60.0;
+    let x = c * (1.0 - (h_prime.rem_euclid(2.0) - 1.0).abs());
+    let (r1, g1, b1) = if h_prime < 1.0 {
+        (c, x, 0.0)
+    } else if h_prime < 2.0 {
+        (x, c, 0.0)
+    } else if h_prime < 3.0 {
+        (0.0, c, x)
+    } else if h_prime < 4.0 {
+        (0.0, x, c)
+    } else if h_prime < 5.0 {
+        (x, 0.0, c)
+    } else {
+        (c, 0.0, x)
+    };
+    let m = v - c;
+    ((r1 + m) * 255.0, (g1 + m) * 255.0, (b1 + m) * 255.0)
+}
+
+fn apply_adjustments_to_color(
+    mut r: f32,
+    mut g: f32,
+    mut b: f32,
+    mut a: f32,
+    adj: &LayerAdjustments,
+    theme: LogoColorTheme,
+) -> (u8, u8, u8, u8) {
+    match theme {
+        LogoColorTheme::Original => {}
+        LogoColorTheme::MonochromeWhite => {
+            r = 255.0;
+            g = 255.0;
+            b = 255.0;
+        }
+        LogoColorTheme::LuxuryGold => {
+            let lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+            r = (212.0 * lum + 30.0).clamp(0.0, 255.0);
+            g = (175.0 * lum + 20.0).clamp(0.0, 255.0);
+            b = (55.0 * lum + 5.0).clamp(0.0, 255.0);
+        }
+        LogoColorTheme::SilverPlatinum => {
+            let lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+            let val = (lum * 220.0 + 35.0).clamp(0.0, 255.0);
+            r = val;
+            g = val;
+            b = (val * 1.05).clamp(0.0, 255.0);
+        }
+        LogoColorTheme::StealthBlack => {
+            let lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+            let val = (lum * 60.0 + 15.0).clamp(0.0, 255.0);
+            r = val;
+            g = val;
+            b = val;
+        }
+    }
+
+    if adj.hue_shift != 0.0 || (adj.saturation - 1.0).abs() > 0.001 {
+        let (h, s, v) = rgb_to_hsv(r, g, b);
+        let new_h = (h + adj.hue_shift).rem_euclid(360.0);
+        let new_s = (s * adj.saturation).clamp(0.0, 1.0);
+        let (nr, ng, nb) = hsv_to_rgb(new_h, new_s, v);
+        r = nr;
+        g = ng;
+        b = nb;
+    }
+
+    if adj.tint_amount > 0.001 {
+        let t_amt = adj.tint_amount.clamp(0.0, 1.0);
+        let tr = adj.tint_color[0] as f32;
+        let tg = adj.tint_color[1] as f32;
+        let tb = adj.tint_color[2] as f32;
+        r = r * (1.0 - t_amt) + (r * tr / 255.0) * t_amt;
+        g = g * (1.0 - t_amt) + (g * tg / 255.0) * t_amt;
+        b = b * (1.0 - t_amt) + (b * tb / 255.0) * t_amt;
+    }
+
+    a = (a * adj.opacity.clamp(0.0, 1.0)).clamp(0.0, 255.0);
+
+    (
+        r.clamp(0.0, 255.0).round() as u8,
+        g.clamp(0.0, 255.0).round() as u8,
+        b.clamp(0.0, 255.0).round() as u8,
+        a.round() as u8,
+    )
+}
+
+fn render_transformed_asset(
+    img: &mut RgbaImage,
+    asset: &RgbaImage,
+    center_x: f32,
+    center_y: f32,
+    scale: f32,
+    base_w: f32,
+    base_h: f32,
+    adj: &LayerAdjustments,
+    theme: LogoColorTheme,
+    has_shadow: bool,
+) {
+    let asset_w = asset.width() as f32;
+    let asset_h = asset.height() as f32;
+    if asset_w <= 0.0 || asset_h <= 0.0 {
+        return;
+    }
+
+    let scale = scale.clamp(0.1, 10.0);
+    let render_w = (base_w * scale).max(1.0);
+    let render_h = (base_h * scale).max(1.0);
+
+    let radius = ((render_w * render_w + render_h * render_h).sqrt() * 0.5 + 4.0).ceil();
+    let min_x = (center_x - radius).floor().max(0.0) as i32;
+    let max_x = (center_x + radius).ceil().min(CARD_WIDTH as f32 - 1.0) as i32;
+    let min_y = (center_y - radius).floor().max(0.0) as i32;
+    let max_y = (center_y + radius).ceil().min(CARD_HEIGHT as f32 - 1.0) as i32;
+
+    if min_x > max_x || min_y > max_y {
+        return;
+    }
+
+    let rad = (-adj.rotation).to_radians();
+    let cos_r = rad.cos();
+    let sin_r = rad.sin();
+
+    if has_shadow && adj.opacity > 0.05 {
+        let shadow_off_x = 3.0;
+        let shadow_off_y = 4.0;
+        let shadow_alpha_factor = 0.45 * adj.opacity;
+
+        for py in min_y..=max_y {
+            let dy = py as f32 + 0.5 - (center_y + shadow_off_y);
+            for px in min_x..=max_x {
+                let dx = px as f32 + 0.5 - (center_x + shadow_off_x);
+                let rot_x = dx * cos_r - dy * sin_r;
+                let rot_y = dx * sin_r + dy * cos_r;
+                let u = rot_x / render_w + 0.5;
+                let v = rot_y / render_h + 0.5;
+                if u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0 {
+                    continue;
+                }
+                let sx = (u * (asset_w - 1.0)).clamp(0.0, asset_w - 1.0);
+                let sy = (v * (asset_h - 1.0)).clamp(0.0, asset_h - 1.0);
+                let sx0 = sx.floor() as u32;
+                let sx1 = (sx0 + 1).min(asset.width() - 1);
+                let sy0 = sy.floor() as u32;
+                let sy1 = (sy0 + 1).min(asset.height() - 1);
+                let fx = sx - sx0 as f32;
+                let fy = sy - sy0 as f32;
+
+                let a00 = asset.get_pixel(sx0, sy0)[3] as f32;
+                let a10 = asset.get_pixel(sx1, sy0)[3] as f32;
+                let a01 = asset.get_pixel(sx0, sy1)[3] as f32;
+                let a11 = asset.get_pixel(sx1, sy1)[3] as f32;
+                let a = (a00 * (1.0 - fx) + a10 * fx) * (1.0 - fy) + (a01 * (1.0 - fx) + a11 * fx) * fy;
+                if a > 8.0 {
+                    let s_a = ((a / 255.0) * shadow_alpha_factor * 255.0).clamp(0.0, 255.0) as u8;
+                    blend_pixel(img, px, py, 0, 0, 0, s_a);
+                }
+            }
+        }
+    }
+
+    for py in min_y..=max_y {
+        let dy = py as f32 + 0.5 - center_y;
+        for px in min_x..=max_x {
+            let dx = px as f32 + 0.5 - center_x;
+            let rot_x = dx * cos_r - dy * sin_r;
+            let rot_y = dx * sin_r + dy * cos_r;
+            let u = rot_x / render_w + 0.5;
+            let v = rot_y / render_h + 0.5;
+            if u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0 {
+                continue;
+            }
+
+            let sx = (u * (asset_w - 1.0)).clamp(0.0, asset_w - 1.0);
+            let sy = (v * (asset_h - 1.0)).clamp(0.0, asset_h - 1.0);
+            let sx0 = sx.floor() as u32;
+            let sx1 = (sx0 + 1).min(asset.width() - 1);
+            let sy0 = sy.floor() as u32;
+            let sy1 = (sy0 + 1).min(asset.height() - 1);
+            let fx = sx - sx0 as f32;
+            let fy = sy - sy0 as f32;
+
+            let p00 = asset.get_pixel(sx0, sy0);
+            let p10 = asset.get_pixel(sx1, sy0);
+            let p01 = asset.get_pixel(sx0, sy1);
+            let p11 = asset.get_pixel(sx1, sy1);
+
+            let interp = |idx: usize| -> f32 {
+                let top = p00[idx] as f32 * (1.0 - fx) + p10[idx] as f32 * fx;
+                let bot = p01[idx] as f32 * (1.0 - fx) + p11[idx] as f32 * fx;
+                top * (1.0 - fy) + bot * fy
+            };
+
+            let a = interp(3);
+            if a < 2.0 {
+                continue;
+            }
+
+            let r = interp(0);
+            let g = interp(1);
+            let b = interp(2);
+
+            let (out_r, out_g, out_b, out_a) = apply_adjustments_to_color(r, g, b, a, adj, theme);
+            if out_a > 0 {
+                blend_pixel(img, px, py, out_r, out_g, out_b, out_a);
+            }
+        }
+    }
+}
+
+#[allow(dead_code)]
 fn render_asset_with_theme(
     img: &mut RgbaImage,
     asset: &RgbaImage,
@@ -872,6 +1269,7 @@ fn render_asset_with_theme(
     }
 }
 
+#[allow(dead_code)]
 fn render_asset_shadow(
     img: &mut RgbaImage,
     asset: &RgbaImage,
@@ -915,36 +1313,64 @@ fn draw_emv_chip(
     chip_x: f32,
     chip_y: f32,
     chip_scale: f32,
+    chip_adj: &LayerAdjustments,
 ) {
     let base_w = 205.0f32;
     let base_h = 155.0f32;
-    let scale = chip_scale.clamp(0.2, 5.0);
-    let dest_w = (base_w * scale).round() as i32;
-    let dest_h = (base_h * scale).round() as i32;
-    let dest_x = chip_x.round() as i32;
-    let dest_y = chip_y.round() as i32;
-
     if let Some(chip) = custom_chip {
-        // Drop shadow for custom chip
-        render_asset_shadow(img, chip, dest_x + 3, dest_y + 4, dest_w, dest_h, 140);
-        render_asset_with_theme(img, chip, dest_x, dest_y, dest_w, dest_h, LogoColorTheme::Original);
+        render_transformed_asset(
+            img,
+            chip,
+            chip_x,
+            chip_y,
+            chip_scale,
+            base_w,
+            base_h,
+            chip_adj,
+            LogoColorTheme::Original,
+            true,
+        );
     } else if let Ok(dyn_img) = image::load_from_memory(ASSET_EMV_CHIP) {
         let chip = dyn_img.to_rgba8();
-        // Drop shadow
-        render_asset_shadow(img, &chip, dest_x + 3, dest_y + 4, dest_w, dest_h, 140);
-        render_asset_with_theme(img, &chip, dest_x, dest_y, dest_w, dest_h, LogoColorTheme::Original);
+        render_transformed_asset(
+            img,
+            &chip,
+            chip_x,
+            chip_y,
+            chip_scale,
+            base_w,
+            base_h,
+            chip_adj,
+            LogoColorTheme::Original,
+            true,
+        );
     }
 }
 
 // ---------------------------------------------------------------------------
-// Contactless Waves Indicator
+// Contactless Waves Indicator (Shockwave) with position, scale, rotation, color
 // ---------------------------------------------------------------------------
-fn draw_contactless_wave(img: &mut RgbaImage) {
+fn draw_contactless_wave(
+    img: &mut RgbaImage,
+    wave_x: f32,
+    wave_y: f32,
+    wave_scale: f32,
+    wave_adj: &LayerAdjustments,
+) {
     if let Ok(dyn_img) = image::load_from_memory(ASSET_CONTACTLESS) {
         let wave = dyn_img.to_rgba8();
-        // Drop shadow for contactless wave
-        render_asset_shadow(img, &wave, 377, 377, 75, 95, 120);
-        render_asset_with_theme(img, &wave, 375, 375, 75, 95, LogoColorTheme::MonochromeWhite);
+        render_transformed_asset(
+            img,
+            &wave,
+            wave_x,
+            wave_y,
+            wave_scale,
+            75.0,
+            95.0,
+            wave_adj,
+            LogoColorTheme::MonochromeWhite,
+            true,
+        );
     }
 }
 
@@ -960,6 +1386,7 @@ fn draw_payment_network(
     logo_x: f32,
     logo_y: f32,
     logo_scale: f32,
+    logo_adj: &LayerAdjustments,
 ) {
     let scale = logo_scale.clamp(0.2, 5.0);
     let bw = (245.0 * scale).round() as i32;
@@ -970,7 +1397,7 @@ fn draw_payment_network(
 
     draw_logo_badge_frame(img, bx0, by0, bw, bh, radius, badge_style);
 
-    let (dest_x, dest_y, dest_w, dest_h) = if badge_style == LogoBadgeStyle::Transparent {
+    let (_dest_x, _dest_y, _dest_w, _dest_h) = if badge_style == LogoBadgeStyle::Transparent {
         (bx0 - (10.0 * scale) as i32, by0 - (8.0 * scale) as i32, bw + (20.0 * scale) as i32, bh + (16.0 * scale) as i32)
     } else {
         (bx0 + (14.0 * scale) as i32, by0 + (10.0 * scale) as i32, bw - (28.0 * scale) as i32, bh - (20.0 * scale) as i32)
@@ -986,11 +1413,19 @@ fn draw_payment_network(
     };
 
     if let Some(logo) = maybe_logo_img {
-        // Soft drop shadow when badge is transparent or outline to ensure contrast
-        if badge_style == LogoBadgeStyle::Transparent || badge_style == LogoBadgeStyle::ThinOutline {
-            render_asset_shadow(img, &logo, dest_x + 2, dest_y + 3, dest_w, dest_h, 110);
-        }
-        render_asset_with_theme(img, &logo, dest_x, dest_y, dest_w, dest_h, color_theme);
+        let has_shadow = badge_style == LogoBadgeStyle::Transparent || badge_style == LogoBadgeStyle::ThinOutline;
+        render_transformed_asset(
+            img,
+            &logo,
+            logo_x,
+            logo_y,
+            logo_scale,
+            245.0,
+            94.0,
+            logo_adj,
+            color_theme,
+            has_shadow,
+        );
     }
 }
 
@@ -1223,7 +1658,7 @@ fn draw_text_backdrop(img: &mut RgbaImage, backdrop: TextBackdropStyle, vertical
     }
 }
 
-fn draw_card_details(img: &mut RgbaImage, details: &CardDetails) {
+fn draw_card_details(img: &mut RgbaImage, details: &CardDetails, _details_adj: &LayerAdjustments) {
     let ocr_font = match FontRef::try_from_slice(ASSET_CARD_OCR) {
         Ok(f) => f,
         Err(_) => return,
@@ -1311,6 +1746,32 @@ fn draw_card_details(img: &mut RgbaImage, details: &CardDetails) {
 // Card Surface Finishes
 // ---------------------------------------------------------------------------
 fn apply_custom_finish_texture(
+    img: &mut RgbaImage,
+    texture: &RgbaImage,
+    pan_x: f32,
+    pan_y: f32,
+    scale: f32,
+    opacity: f32,
+    finish_adj: &LayerAdjustments,
+) {
+    let mut adj = *finish_adj;
+    adj.opacity *= opacity;
+    render_transformed_asset(
+        img,
+        texture,
+        CARD_WIDTH as f32 * 0.5 + pan_x,
+        CARD_HEIGHT as f32 * 0.5 + pan_y,
+        scale,
+        CARD_WIDTH as f32,
+        CARD_HEIGHT as f32,
+        &adj,
+        LogoColorTheme::Original,
+        false,
+    );
+}
+
+#[allow(dead_code)]
+fn apply_custom_finish_texture_legacy(
     img: &mut RgbaImage,
     texture: &RgbaImage,
     pan_x: f32,
@@ -1456,6 +1917,7 @@ fn apply_surface_finish(
                     options.finish_y,
                     options.finish_scale,
                     options.finish_opacity,
+                    &options.finish_adj,
                 );
             }
         }
@@ -1739,10 +2201,39 @@ mod tests {
             zoom: 1.5,
             pan_x: 50.0,
             pan_y: -30.0,
+            rotation: 15.0,
         };
-        let res = render_transformed_custom_image(&dummy, transform);
+        let res = render_transformed_custom_image(&dummy, transform, &LayerAdjustments::default());
         assert_eq!(res.width(), CARD_WIDTH);
         assert_eq!(res.height(), CARD_HEIGHT);
+    }
+
+    #[test]
+    fn test_render_preview_canvas_and_shockwave() {
+        let mut options = CardOverlayOptions::default();
+        options.show_contactless = true;
+        options.wave_x = 400.0;
+        options.wave_y = 350.0;
+        options.wave_scale = 1.2;
+        options.wave_adj.rotation = 45.0;
+        options.wave_adj.tint_color = [255, 0, 128];
+        options.wave_adj.tint_amount = 0.8;
+
+        let (rgba, preview) = PreparedSkin::render_preview_canvas(
+            None,
+            &options,
+            None,
+            None,
+            None,
+        ).expect("render_preview_canvas failed");
+
+        assert_eq!(rgba.width(), CARD_WIDTH);
+        assert_eq!(rgba.height(), CARD_HEIGHT);
+        assert_eq!(preview.size, [CARD_WIDTH as usize, CARD_HEIGHT as usize]);
+
+        let (png, pdf) = PreparedSkin::encode_skin_png_and_pdf(&rgba).expect("encode failed");
+        assert!(!png.is_empty());
+        assert!(!pdf.is_empty());
     }
 
     #[test]

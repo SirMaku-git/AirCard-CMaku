@@ -5,13 +5,14 @@ use std::sync::mpsc::{Receiver, channel};
 use std::thread;
 
 use eframe::egui;
+use image::GenericImageView;
 
 use crate::apple;
 use crate::device::{DeviceInfo, list_connected_devices};
 use crate::flasher::{flash_passcode_theme, flash_wallet_skin};
 use crate::image_skin::{
     CardBackgroundPreset, CardFinish, CardOverlayOptions, EmbossStyle,
-    ImageTransform, LogoBadgeStyle, LogoColorTheme, PaymentNetwork, PreparedSkin, TextBackdropStyle,
+    ImageTransform, LayerAdjustments, LogoBadgeStyle, LogoColorTheme, PaymentNetwork, PreparedSkin, TextBackdropStyle, CARD_WIDTH, CARD_HEIGHT,
 };
 use crate::passthm::{PasscodeTheme, parse_passthm_file};
 use crate::scanner::{SavedCard, load_saved_cards, scan_syslog_for_cards};
@@ -76,7 +77,9 @@ pub enum ActiveTransformLayer {
     Background,
     Finish,
     Chip,
+    Wave,
     Logo,
+    Details,
 }
 
 pub struct AirCardApp {
@@ -155,7 +158,7 @@ impl AirCardApp {
             custom_finish_image: None,
             custom_finish_path: None,
             active_layer: ActiveTransformLayer::Background,
-            ui_language: UiLanguage::English,
+            ui_language: UiLanguage::Vietnamese,
             overlay_options: CardOverlayOptions::default(),
             skin: None,
             skin_texture: None,
@@ -179,7 +182,7 @@ impl AirCardApp {
             show_logs_window: false,
         };
 
-        app.add_log("AIrCard-CMaku Windows v1.2.2 initialized");
+        app.add_log(format!("AirCard-CMaku Windows v{} initialized", env!("CARGO_PKG_VERSION")));
         app.add_log(format!("Apple Support Runtime: {}", if app.apple_ready { "Loaded and operational" } else { "Not found (iTunes required)" }));
         app.add_log(format!("Loaded {} saved card(s) from database", app.saved_cards.len()));
 
@@ -360,28 +363,58 @@ impl AirCardApp {
         if self.raw_image.is_none() && self.overlay_options.bg_preset == CardBackgroundPreset::CustomImage {
             return;
         }
-        match PreparedSkin::from_preset_or_image_with_assets(
-            self.raw_image.clone(),
+        match PreparedSkin::render_preview_canvas(
+            self.raw_image.as_ref(),
             &self.overlay_options,
             self.custom_logo_image.as_ref(),
             self.custom_chip_image.as_ref(),
             self.custom_finish_image.as_ref(),
         ) {
-            Ok(skin) => {
+            Ok((rgba, preview)) => {
                 self.skin_texture = Some(ctx.load_texture(
                     "card-skin-preview",
-                    skin.preview.clone(),
+                    preview.clone(),
                     egui::TextureOptions::LINEAR,
                 ));
-                self.skin = Some(skin);
+                let (source_width, source_height) = if let Some(ref img) = self.raw_image {
+                    img.dimensions()
+                } else {
+                    (CARD_WIDTH, CARD_HEIGHT)
+                };
+                self.skin = Some(PreparedSkin {
+                    png: Vec::new(),
+                    pdf: Vec::new(),
+                    preview,
+                    source_width,
+                    source_height,
+                    rgba,
+                });
             }
             Err(err) => {
-                self.add_log(format!("Failed to re-render card skin with overlays: {err:#}"));
+                self.add_log(format!("Failed to re-render card preview: {err:#}"));
             }
         }
     }
 
+    fn ensure_skin_encoded(&mut self) -> Result<(), String> {
+        let Some(skin) = self.skin.as_mut() else {
+            return Err("No skin prepared".to_string());
+        };
+        if skin.png.is_empty() || skin.pdf.is_empty() {
+            let (png, pdf) = PreparedSkin::encode_skin_png_and_pdf(&skin.rgba)
+                .map_err(|e| format!("{e:#}"))?;
+            skin.png = png;
+            skin.pdf = pdf;
+        }
+        Ok(())
+    }
+
     fn save_prepared_png(&mut self) {
+        if let Err(err) = self.ensure_skin_encoded() {
+            self.add_log(format!("Export failed: {err}"));
+            self.status_msg = format!("Could not encode PNG: {err}");
+            return;
+        }
         let Some(skin) = &self.skin else {
             return;
         };
@@ -458,6 +491,11 @@ impl AirCardApp {
         if hash.is_empty() {
             self.add_log("Flash failed: Target card hash is empty.");
             self.status_msg = "Please enter or scan a target card hash.".to_string();
+            return;
+        }
+        if let Err(err) = self.ensure_skin_encoded() {
+            self.add_log(format!("Flash failed: Could not encode skin assets: {err}"));
+            self.status_msg = format!("Could not encode skin assets: {err}");
             return;
         }
         let Some(skin) = self.skin.as_ref() else {
@@ -905,13 +943,13 @@ impl eframe::App for AirCardApp {
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(
-                        egui::RichText::new("AIrCard-CMaku")
+                        egui::RichText::new("AirCard-CMaku")
                             .strong()
                             .size(18.0)
                             .color(md3::ON_SURFACE),
                     );
                     ui.label(
-                        egui::RichText::new("v1.2.2")
+                        egui::RichText::new(format!("v{}", env!("CARGO_PKG_VERSION")))
                             .size(11.0)
                             .color(md3::ON_SURFACE_VARIANT),
                     );
@@ -928,8 +966,8 @@ impl eframe::App for AirCardApp {
 
                     ui.add_space(8.0);
                     let (lang_btn_text, lang_hover) = match self.ui_language {
-                        UiLanguage::English => ("🌐 VI", "Chuyển giao diện sang Tiếng Việt"),
-                        UiLanguage::Vietnamese => ("🌐 EN", "Switch interface to English"),
+                        UiLanguage::English => ("🌐 Tiếng Việt", "Chuyển giao diện sang Tiếng Việt"),
+                        UiLanguage::Vietnamese => ("🌐 English", "Switch interface to English"),
                     };
                     let lang_btn = egui::Button::new(
                         egui::RichText::new(lang_btn_text).size(11.0).color(md3::PRIMARY).strong(),
@@ -945,7 +983,8 @@ impl eframe::App for AirCardApp {
                     }
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if m3_button_outlined(ui, "Refresh") {
+                        let is_vi = self.ui_language == UiLanguage::Vietnamese;
+                        if m3_button_outlined(ui, if is_vi { "Làm mới" } else { "Refresh" }) {
                             self.refresh_devices();
                         }
                         ui.add_space(4.0);
@@ -959,7 +998,7 @@ impl eframe::App for AirCardApp {
                             ui.label(egui::RichText::new(name).size(12.0).color(md3::ON_SURFACE))
                                 .on_hover_text(&self.apple_status);
                         } else {
-                            ui.label(egui::RichText::new("No device").size(12.0).color(md3::ON_SURFACE_VARIANT))
+                            ui.label(egui::RichText::new(if is_vi { "Chưa kết nối" } else { "No device" }).size(12.0).color(md3::ON_SURFACE_VARIANT))
                                 .on_hover_text(&self.apple_status);
                         }
                     });
@@ -984,7 +1023,19 @@ impl eframe::App for AirCardApp {
                     };
                     draw_status_dot(ui, dot_col);
                     if self.is_busy || self.scanning_syslog { ui.spinner(); }
-                    ui.label(egui::RichText::new(&self.status_msg).size(11.5).color(md3::ON_SURFACE_VARIANT));
+                    let is_vi = self.ui_language == UiLanguage::Vietnamese;
+                    let display_status = if is_vi {
+                        if self.status_msg.starts_with("Ready") {
+                            "Sẵn sàng. Kết nối iPhone qua cáp USB và mở khóa màn hình."
+                        } else if self.status_msg.contains("No devices connected") {
+                            "Chưa có thiết bị kết nối qua USB."
+                        } else {
+                            &self.status_msg
+                        }
+                    } else {
+                        &self.status_msg
+                    };
+                    ui.label(egui::RichText::new(display_status).size(11.5).color(md3::ON_SURFACE_VARIANT));
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let btn_text = if self.show_logs_window { "Logs [x]" } else { "Logs" };
@@ -1088,6 +1139,7 @@ impl eframe::App for AirCardApp {
 
 impl AirCardApp {
     fn show_wallet_tab(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+        let is_vi = self.ui_language == UiLanguage::Vietnamese;
         if self.scanning_syslog {
             egui::Frame::new()
                 .fill(md3::TERTIARY_CONTAINER)
@@ -1097,11 +1149,14 @@ impl AirCardApp {
                     ui.horizontal(|ui| {
                         ui.spinner();
                         ui.vertical(|ui| {
-                            ui.label(egui::RichText::new("Scanning syslog...").strong().size(13.0).color(md3::ON_TERTIARY_CONTAINER));
-                            ui.label(egui::RichText::new("Open Wallet on iPhone and tap your card").size(11.5).color(md3::ON_TERTIARY_CONTAINER));
+                            let scan_title = if is_vi { "Đang quét syslog..." } else { "Scanning syslog..." };
+                            let scan_sub = if is_vi { "Mở ứng dụng Wallet trên iPhone và chạm vào thẻ của bạn" } else { "Open Wallet on iPhone and tap your card" };
+                            ui.label(egui::RichText::new(scan_title).strong().size(13.0).color(md3::ON_TERTIARY_CONTAINER));
+                            ui.label(egui::RichText::new(scan_sub).size(11.5).color(md3::ON_TERTIARY_CONTAINER));
                         });
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let btn = egui::Button::new(egui::RichText::new("Stop").size(12.0).color(md3::ON_SURFACE))
+                            let stop_txt = if is_vi { "Dừng" } else { "Stop" };
+                            let btn = egui::Button::new(egui::RichText::new(stop_txt).size(12.0).color(md3::ON_SURFACE))
                                 .fill(md3::ERROR_CONTAINER).corner_radius(20).stroke(egui::Stroke::NONE);
                             if ui.add(btn).clicked() { self.toggle_syslog_scan(); }
                         });
@@ -1113,20 +1168,24 @@ impl AirCardApp {
         ui.columns(2, |cols| {
             let left = &mut cols[0];
             m3_card(left, |ui| {
-                ui.label(egui::RichText::new("Card Configuration").strong().size(16.0).color(md3::ON_SURFACE));
+                let cfg_title = if is_vi { "Cấu hình thẻ" } else { "Card Configuration" };
+                let cfg_sub = if is_vi { "Chọn thẻ mục tiêu và ảnh thay thế" } else { "Target your card and choose replacement artwork" };
+                ui.label(egui::RichText::new(cfg_title).strong().size(16.0).color(md3::ON_SURFACE));
                 ui.add_space(4.0);
-                ui.label(egui::RichText::new("Target your card and choose replacement artwork").size(12.0).color(md3::ON_SURFACE_VARIANT));
+                ui.label(egui::RichText::new(cfg_sub).size(12.0).color(md3::ON_SURFACE_VARIANT));
                 ui.add_space(16.0);
 
                 // Target Card Hash
-                ui.label(egui::RichText::new("Target Card Hash").strong().size(12.0).color(md3::ON_SURFACE));
+                let hash_title = if is_vi { "Mã Hash thẻ mục tiêu" } else { "Target Card Hash" };
+                let hash_hint = if is_vi { "Mã pass hash Base64..." } else { "Base64 pass hash..." };
+                ui.label(egui::RichText::new(hash_title).strong().size(12.0).color(md3::ON_SURFACE));
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     let btn_w = 90.0;
                     let text_w = (ui.available_width() - btn_w - 12.0).max(150.0);
-                    ui.add(egui::TextEdit::singleline(&mut self.card_hash).hint_text("Base64 pass hash...").desired_width(text_w));
+                    ui.add(egui::TextEdit::singleline(&mut self.card_hash).hint_text(hash_hint).desired_width(text_w));
 
-                    let scan_label = if self.scanning_syslog { "Stop" } else { "Scan" };
+                    let scan_label = if self.scanning_syslog { if is_vi { "Dừng" } else { "Stop" } } else { if is_vi { "Quét" } else { "Scan" } };
                     let scan_bg = if self.scanning_syslog { md3::ERROR_CONTAINER } else { md3::PRIMARY_CONTAINER };
                     let scan_fg = if self.scanning_syslog { md3::ERROR } else { md3::ON_PRIMARY_CONTAINER };
                     let scan_btn = egui::Button::new(egui::RichText::new(scan_label).size(12.0).color(scan_fg))
@@ -1136,13 +1195,15 @@ impl AirCardApp {
 
                 if !self.saved_cards.is_empty() {
                     ui.add_space(8.0);
-                    ui.label(egui::RichText::new("Saved cards").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                    let saved_lbl = if is_vi { "Thẻ đã lưu" } else { "Saved cards" };
+                    let default_sel = if is_vi { "Chọn thẻ..." } else { "Select..." };
+                    ui.label(egui::RichText::new(saved_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                     ui.add_space(2.0);
                     let combo_w = (ui.available_width() - 4.0).max(150.0);
                     let sel_label = self.saved_cards.iter()
                         .find(|c| c.hash == self.card_hash)
                         .map(|c| format!("{} ({})", c.name, &c.hash[..8.min(c.hash.len())]))
-                        .unwrap_or_else(|| "Select...".into());
+                        .unwrap_or_else(|| default_sel.into());
 
                     egui::ComboBox::from_id_salt("saved_cards_box")
                         .width(combo_w)
@@ -1164,13 +1225,17 @@ impl AirCardApp {
                 ui.add_space(16.0);
 
                 // Card Skin
-                ui.label(egui::RichText::new("Card Skin Artwork").strong().size(12.0).color(md3::ON_SURFACE));
-                ui.label(egui::RichText::new("PNG, JPG, WebP - auto-scaled to 1536x969").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                let skin_title = if is_vi { "Ảnh giao diện thẻ" } else { "Card Skin Artwork" };
+                let skin_sub = if is_vi { "PNG, JPG, WebP - tự động co giãn về 1536x969" } else { "PNG, JPG, WebP - auto-scaled to 1536x969" };
+                ui.label(egui::RichText::new(skin_title).strong().size(12.0).color(md3::ON_SURFACE));
+                ui.label(egui::RichText::new(skin_sub).size(11.0).color(md3::ON_SURFACE_VARIANT));
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    if m3_button_filled(ui, "Choose Image...") { self.select_skin(ctx); }
+                    let choose_lbl = if is_vi { "Chọn ảnh..." } else { "Choose Image..." };
+                    if m3_button_filled(ui, choose_lbl) { self.select_skin(ctx); }
                     if self.skin.is_some() {
-                        if m3_button_tonal(ui, "Export PNG") { self.save_prepared_png(); }
+                        let export_lbl = if is_vi { "Xuất PNG" } else { "Export PNG" };
+                        if m3_button_tonal(ui, export_lbl) { self.save_prepared_png(); }
                     }
                 });
 
@@ -1186,15 +1251,18 @@ impl AirCardApp {
                 if self.raw_image.is_some() || self.overlay_options.bg_preset == CardBackgroundPreset::CustomImage {
                     ui.add_space(6.0);
                     ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("Zoom:").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                        let zoom_lbl = if is_vi { "Thu phóng:" } else { "Zoom:" };
+                        ui.label(egui::RichText::new(zoom_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                         let mut zoom_percent = (self.overlay_options.transform.zoom * 100.0).round() as i32;
                         if ui.add(egui::Slider::new(&mut zoom_percent, 20..=500).suffix("%").show_value(true)).changed() {
                             self.overlay_options.transform.zoom = (zoom_percent as f32 / 100.0).clamp(0.05, 50.0);
                             overlay_changed = true;
                         }
 
-                        if ui.button(egui::RichText::new("↺ Reset Fit").size(10.5).color(md3::PRIMARY))
-                            .on_hover_text("Reset zoom to 100% and center image")
+                        let reset_fit_lbl = if is_vi { "↺ Vừa khung" } else { "↺ Reset Fit" };
+                        let reset_fit_hover = if is_vi { "Khôi phục thu phóng 100% và căn giữa ảnh" } else { "Reset zoom to 100% and center image" };
+                        if ui.button(egui::RichText::new(reset_fit_lbl).size(10.5).color(md3::PRIMARY))
+                            .on_hover_text(reset_fit_hover)
                             .clicked()
                         {
                             self.overlay_options.transform = ImageTransform::default();
@@ -1207,10 +1275,13 @@ impl AirCardApp {
 
                 // Card Overlays & Studio Customization
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("Card Studio & Customization").strong().size(12.0).color(md3::ON_SURFACE));
+                    let studio_lbl = if is_vi { "Card Studio & Tùy biến" } else { "Card Studio & Customization" };
+                    ui.label(egui::RichText::new(studio_lbl).strong().size(12.0).color(md3::ON_SURFACE));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button(egui::RichText::new("↺ Reset to Default").size(10.5).color(md3::PRIMARY))
-                            .on_hover_text("Reset all card customizations, overlays, and logos to default")
+                        let reset_def_lbl = if is_vi { "↺ Khôi phục mặc định" } else { "↺ Reset to Default" };
+                        let reset_def_hover = if is_vi { "Khôi phục toàn bộ tùy biến thẻ, lớp phủ và logo về mặc định" } else { "Reset all card customizations, overlays, and logos to default" };
+                        if ui.button(egui::RichText::new(reset_def_lbl).size(10.5).color(md3::PRIMARY))
+                            .on_hover_text(reset_def_hover)
                             .clicked()
                         {
                             self.overlay_options = CardOverlayOptions::default();
@@ -1229,11 +1300,12 @@ impl AirCardApp {
 
                 // Row 1: Background Preset & Finish
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("Background:").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                    let bg_lbl = if is_vi { "Nền:" } else { "Background:" };
+                    ui.label(egui::RichText::new(bg_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                     let cur_bg = self.overlay_options.bg_preset;
                     egui::ComboBox::from_id_salt("bg_preset_select")
                         .width(160.0)
-                        .selected_text(egui::RichText::new(cur_bg.display_name()).size(11.0).color(md3::ON_SURFACE))
+                        .selected_text(egui::RichText::new(cur_bg.display_name_lang(is_vi)).size(11.0).color(md3::ON_SURFACE))
                         .show_ui(ui, |ui| {
                             for preset in [
                                 CardBackgroundPreset::CustomImage,
@@ -1246,7 +1318,7 @@ impl AirCardApp {
                                 CardBackgroundPreset::DeepCyberViolet,
                             ] {
                                 let is_sel = cur_bg == preset;
-                                if ui.selectable_label(is_sel, preset.display_name()).clicked() {
+                                if ui.selectable_label(is_sel, preset.display_name_lang(is_vi)).clicked() {
                                     if self.overlay_options.bg_preset != preset {
                                         self.overlay_options.bg_preset = preset;
                                         overlay_changed = true;
@@ -1255,11 +1327,12 @@ impl AirCardApp {
                             }
                         });
 
-                    ui.label(egui::RichText::new("Finish:").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                    let finish_lbl = if is_vi { "Chất liệu hoàn thiện:" } else { "Finish:" };
+                    ui.label(egui::RichText::new(finish_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                     let cur_finish = self.overlay_options.finish;
                     egui::ComboBox::from_id_salt("finish_select")
                         .width(135.0)
-                        .selected_text(egui::RichText::new(cur_finish.display_name()).size(11.0).color(md3::ON_SURFACE))
+                        .selected_text(egui::RichText::new(cur_finish.display_name_lang(is_vi)).size(11.0).color(md3::ON_SURFACE))
                         .show_ui(ui, |ui| {
                             for finish in [
                                 CardFinish::Standard,
@@ -1268,7 +1341,7 @@ impl AirCardApp {
                                 CardFinish::CustomTexture,
                             ] {
                                 let is_sel = cur_finish == finish;
-                                if ui.selectable_label(is_sel, finish.display_name()).clicked() {
+                                if ui.selectable_label(is_sel, finish.display_name_lang(is_vi)).clicked() {
                                     if self.overlay_options.finish != finish {
                                         self.overlay_options.finish = finish;
                                         if finish == CardFinish::CustomTexture {
@@ -1288,13 +1361,14 @@ impl AirCardApp {
                         let tex_title = if let Some(path) = &self.custom_finish_path {
                             format!("Texture: {}", path.file_name().and_then(|n| n.to_str()).unwrap_or("texture.png"))
                         } else {
-                            "Upload Texture / Foil...".to_string()
+                            if is_vi { "Tải lên Texture / Foil...".to_string() } else { "Upload Texture / Foil...".to_string() }
                         };
                         if m3_button_tonal(ui, &tex_title) {
                             self.select_custom_finish(ctx);
                         }
                         if self.custom_finish_image.is_some() {
-                            if ui.button(egui::RichText::new("Clear").size(11.0).color(md3::ERROR)).clicked() {
+                            let clear_txt = if is_vi { "Xóa" } else { "Clear" };
+                            if ui.button(egui::RichText::new(clear_txt).size(11.0).color(md3::ERROR)).clicked() {
                                 self.custom_finish_image = None;
                                 self.custom_finish_path = None;
                                 self.overlay_options.finish = CardFinish::Standard;
@@ -1304,22 +1378,26 @@ impl AirCardApp {
                     });
 
                     ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("Opacity:").size(10.5).color(md3::ON_SURFACE_VARIANT));
+                        let op_lbl = if is_vi { "Độ mờ:" } else { "Opacity:" };
+                        ui.label(egui::RichText::new(op_lbl).size(10.5).color(md3::ON_SURFACE_VARIANT));
                         let mut op_pct = (self.overlay_options.finish_opacity * 100.0).round() as i32;
                         if ui.add(egui::Slider::new(&mut op_pct, 5..=100).suffix("%")).changed() {
                             self.overlay_options.finish_opacity = (op_pct as f32 / 100.0).clamp(0.05, 1.0);
                             overlay_changed = true;
                         }
 
-                        ui.label(egui::RichText::new("Scale:").size(10.5).color(md3::ON_SURFACE_VARIANT));
+                        let sc_lbl = if is_vi { "Tỉ lệ:" } else { "Scale:" };
+                        ui.label(egui::RichText::new(sc_lbl).size(10.5).color(md3::ON_SURFACE_VARIANT));
                         let mut sc_pct = (self.overlay_options.finish_scale * 100.0).round() as i32;
                         if ui.add(egui::Slider::new(&mut sc_pct, 20..=500).suffix("%")).changed() {
                             self.overlay_options.finish_scale = (sc_pct as f32 / 100.0).clamp(0.1, 10.0);
                             overlay_changed = true;
                         }
 
-                        if ui.button(egui::RichText::new("↺ Reset").size(10.5).color(md3::PRIMARY))
-                            .on_hover_text("Reset texture pan, scale, and opacity")
+                        let reset_tex_lbl = if is_vi { "↺ Đặt lại" } else { "↺ Reset" };
+                        let reset_tex_hover = if is_vi { "Đặt lại vị trí, tỉ lệ và độ mờ của texture" } else { "Reset texture pan, scale, and opacity" };
+                        if ui.button(egui::RichText::new(reset_tex_lbl).size(10.5).color(md3::PRIMARY))
+                            .on_hover_text(reset_tex_hover)
                             .clicked()
                         {
                             self.overlay_options.finish_x = 0.0;
@@ -1335,11 +1413,12 @@ impl AirCardApp {
 
                 // Row 2: Brand, Logo Frame/Outline, Logo Color
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("Brand:").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                    let brand_lbl = if is_vi { "Thương hiệu:" } else { "Brand:" };
+                    ui.label(egui::RichText::new(brand_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                     let cur_net = self.overlay_options.network;
                     egui::ComboBox::from_id_salt("network_select")
                         .width(95.0)
-                        .selected_text(egui::RichText::new(cur_net.display_name()).size(11.0).color(md3::ON_SURFACE))
+                        .selected_text(egui::RichText::new(cur_net.display_name_lang(is_vi)).size(11.0).color(md3::ON_SURFACE))
                         .show_ui(ui, |ui| {
                             for net in [
                                 PaymentNetwork::None,
@@ -1350,7 +1429,7 @@ impl AirCardApp {
                                 PaymentNetwork::Custom,
                             ] {
                                 let is_sel = cur_net == net;
-                                if ui.selectable_label(is_sel, net.display_name()).clicked() {
+                                if ui.selectable_label(is_sel, net.display_name_lang(is_vi)).clicked() {
                                     if self.overlay_options.network != net {
                                         self.overlay_options.network = net;
                                         if net != PaymentNetwork::None {
@@ -1377,7 +1456,7 @@ impl AirCardApp {
                                 LogoBadgeStyle::SubtleGlow,
                             ] {
                                 let is_sel = cur_badge == style;
-                                if ui.selectable_label(is_sel, style.display_name()).clicked() {
+                                if ui.selectable_label(is_sel, style.display_name_lang(is_vi)).clicked() {
                                     if self.overlay_options.logo_style != style {
                                         self.overlay_options.logo_style = style;
                                         overlay_changed = true;
@@ -1386,11 +1465,12 @@ impl AirCardApp {
                             }
                         });
 
-                    ui.label(egui::RichText::new("Color:").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                    let color_lbl = if is_vi { "Màu sắc:" } else { "Color:" };
+                    ui.label(egui::RichText::new(color_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                     let cur_color = self.overlay_options.logo_color;
                     egui::ComboBox::from_id_salt("logo_color_select")
                         .width(110.0)
-                        .selected_text(egui::RichText::new(cur_color.display_name()).size(11.0).color(md3::ON_SURFACE))
+                        .selected_text(egui::RichText::new(cur_color.display_name_lang(is_vi)).size(11.0).color(md3::ON_SURFACE))
                         .show_ui(ui, |ui| {
                             for theme in [
                                 LogoColorTheme::Original,
@@ -1400,7 +1480,7 @@ impl AirCardApp {
                                 LogoColorTheme::StealthBlack,
                             ] {
                                 let is_sel = cur_color == theme;
-                                if ui.selectable_label(is_sel, theme.display_name()).clicked() {
+                                if ui.selectable_label(is_sel, theme.display_name_lang(is_vi)).clicked() {
                                     if self.overlay_options.logo_color != theme {
                                         self.overlay_options.logo_color = theme;
                                         overlay_changed = true;
@@ -1417,13 +1497,14 @@ impl AirCardApp {
                         let btn_title = if let Some(path) = &self.custom_logo_path {
                             format!("Custom: {}", path.file_name().and_then(|n| n.to_str()).unwrap_or("logo.png"))
                         } else {
-                            "Upload Custom Logo (PNG)...".to_string()
+                            if is_vi { "Tải Logo riêng (PNG)...".to_string() } else { "Upload Custom Logo (PNG)...".to_string() }
                         };
                         if m3_button_tonal(ui, &btn_title) {
                             self.select_custom_logo(ctx);
                         }
                         if self.custom_logo_image.is_some() {
-                            if ui.button(egui::RichText::new("Clear").size(11.0).color(md3::ERROR)).clicked() {
+                            let clear_logo = if is_vi { "Xóa" } else { "Clear" };
+                            if ui.button(egui::RichText::new(clear_logo).size(11.0).color(md3::ERROR)).clicked() {
                                 self.custom_logo_image = None;
                                 self.custom_logo_path = None;
                                 self.overlay_options.network = PaymentNetwork::None;
@@ -1437,7 +1518,8 @@ impl AirCardApp {
                 if self.overlay_options.network != PaymentNetwork::None {
                     ui.add_space(2.0);
                     ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("Logo Scale:").size(10.5).color(md3::ON_SURFACE_VARIANT));
+                        let logo_sc_lbl = if is_vi { "Tỉ lệ Logo:" } else { "Logo Scale:" };
+                        ui.label(egui::RichText::new(logo_sc_lbl).size(10.5).color(md3::ON_SURFACE_VARIANT));
                         let mut logo_sc_pct = (self.overlay_options.logo_scale * 100.0).round() as i32;
                         if ui.add(egui::Slider::new(&mut logo_sc_pct, 30..=250).suffix("%")).changed() {
                             self.overlay_options.logo_scale = (logo_sc_pct as f32 / 100.0).clamp(0.2, 5.0);
@@ -1454,8 +1536,10 @@ impl AirCardApp {
                             overlay_changed = true;
                         }
 
-                        if ui.button(egui::RichText::new("↺ Reset").size(10.5).color(md3::PRIMARY))
-                            .on_hover_text("Reset logo position and scale")
+                        let reset_logo_lbl = if is_vi { "↺ Đặt lại" } else { "↺ Reset" };
+                        let reset_logo_hover = if is_vi { "Đặt lại vị trí và tỉ lệ logo" } else { "Reset logo position and scale" };
+                        if ui.button(egui::RichText::new(reset_logo_lbl).size(10.5).color(md3::PRIMARY))
+                            .on_hover_text(reset_logo_hover)
                             .clicked()
                         {
                             self.overlay_options.logo_x = 1205.0;
@@ -1470,16 +1554,22 @@ impl AirCardApp {
 
                 // Row 3: Hardware & Details Toggles
                 ui.horizontal(|ui| {
-                    if ui.checkbox(&mut self.overlay_options.show_chip, egui::RichText::new("EMV Gold Chip").size(11.5).color(md3::ON_SURFACE)).changed() {
+                    let chip_cb_lbl = if is_vi { "Chip EMV kim loại" } else { "EMV Gold Chip" };
+                    if ui.checkbox(&mut self.overlay_options.show_chip, egui::RichText::new(chip_cb_lbl).size(11.5).color(md3::ON_SURFACE)).changed() {
                         if self.overlay_options.show_chip {
                             self.active_layer = ActiveTransformLayer::Chip;
                         }
                         overlay_changed = true;
                     }
-                    if ui.checkbox(&mut self.overlay_options.show_contactless, egui::RichText::new("Contactless Wave").size(11.5).color(md3::ON_SURFACE)).changed() {
+                    let wave_cb_lbl = if is_vi { "Sóng Contactless" } else { "Contactless Wave" };
+                    if ui.checkbox(&mut self.overlay_options.show_contactless, egui::RichText::new(wave_cb_lbl).size(11.5).color(md3::ON_SURFACE)).changed() {
+                        if self.overlay_options.show_contactless {
+                            self.active_layer = ActiveTransformLayer::Wave;
+                        }
                         overlay_changed = true;
                     }
-                    if ui.checkbox(&mut self.overlay_options.details.show_details, egui::RichText::new("Emboss Card Details").size(11.5).color(md3::PRIMARY)).changed() {
+                    let details_cb_lbl = if is_vi { "Dập nổi thông tin thẻ" } else { "Emboss Card Details" };
+                    if ui.checkbox(&mut self.overlay_options.details.show_details, egui::RichText::new(details_cb_lbl).size(11.5).color(md3::PRIMARY)).changed() {
                         overlay_changed = true;
                     }
                 });
@@ -1491,14 +1581,16 @@ impl AirCardApp {
                         let chip_title = if let Some(path) = &self.custom_chip_path {
                             format!("Chip: {}", path.file_name().and_then(|n| n.to_str()).unwrap_or("chip.png"))
                         } else {
-                            "Upload Custom Chip (PNG)...".to_string()
+                            if is_vi { "Tải Chip riêng (PNG)...".to_string() } else { "Upload Custom Chip (PNG)...".to_string() }
                         };
                         if m3_button_tonal(ui, &chip_title) {
                             self.select_custom_chip(ctx);
                         }
                         if self.custom_chip_image.is_some() {
-                            if ui.button(egui::RichText::new("Use Default Gold").size(11.0).color(md3::ON_SURFACE_VARIANT))
-                                .on_hover_text("Revert to default procedural EMV gold chip")
+                            let def_gold_lbl = if is_vi { "Dùng Chip vàng mặc định" } else { "Use Default Gold" };
+                            let def_gold_hover = if is_vi { "Quay lại dùng chip EMV vàng mặc định" } else { "Revert to default procedural EMV gold chip" };
+                            if ui.button(egui::RichText::new(def_gold_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT))
+                                .on_hover_text(def_gold_hover)
                                 .clicked()
                             {
                                 self.custom_chip_image = None;
@@ -1509,7 +1601,8 @@ impl AirCardApp {
                     });
 
                     ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("Chip Scale:").size(10.5).color(md3::ON_SURFACE_VARIANT));
+                        let chip_sc_lbl = if is_vi { "Tỉ lệ Chip:" } else { "Chip Scale:" };
+                        ui.label(egui::RichText::new(chip_sc_lbl).size(10.5).color(md3::ON_SURFACE_VARIANT));
                         let mut chip_sc_pct = (self.overlay_options.chip_scale * 100.0).round() as i32;
                         if ui.add(egui::Slider::new(&mut chip_sc_pct, 30..=250).suffix("%")).changed() {
                             self.overlay_options.chip_scale = (chip_sc_pct as f32 / 100.0).clamp(0.2, 5.0);
@@ -1533,6 +1626,42 @@ impl AirCardApp {
                             self.overlay_options.chip_x = 188.0;
                             self.overlay_options.chip_y = 398.0;
                             self.overlay_options.chip_scale = 1.0;
+                            self.overlay_options.chip_adj = LayerAdjustments::default();
+                            overlay_changed = true;
+                        }
+                    });
+                }
+
+                // Row 3c: Contactless Wave (Shockwave) Controls (when show_contactless is true)
+                if self.overlay_options.show_contactless {
+                    ui.add_space(2.0);
+                    ui.horizontal(|ui| {
+                        let wave_sc_lbl = if is_vi { "Tỉ lệ Sóng:" } else { "Wave Scale:" };
+                        ui.label(egui::RichText::new(wave_sc_lbl).size(10.5).color(md3::ON_SURFACE_VARIANT));
+                        let mut wave_sc_pct = (self.overlay_options.wave_scale * 100.0).round() as i32;
+                        if ui.add(egui::Slider::new(&mut wave_sc_pct, 30..=250).suffix("%")).changed() {
+                            self.overlay_options.wave_scale = (wave_sc_pct as f32 / 100.0).clamp(0.2, 5.0);
+                            overlay_changed = true;
+                        }
+
+                        ui.label(egui::RichText::new("X:").size(10.5).color(md3::ON_SURFACE_VARIANT));
+                        if ui.add(egui::DragValue::new(&mut self.overlay_options.wave_x).range(0.0..=1500.0).speed(1.0)).changed() {
+                            overlay_changed = true;
+                        }
+
+                        ui.label(egui::RichText::new("Y:").size(10.5).color(md3::ON_SURFACE_VARIANT));
+                        if ui.add(egui::DragValue::new(&mut self.overlay_options.wave_y).range(0.0..=1000.0).speed(1.0)).changed() {
+                            overlay_changed = true;
+                        }
+
+                        if ui.button(egui::RichText::new("↺ Reset").size(10.5).color(md3::PRIMARY))
+                            .on_hover_text("Reset wave to default position and size")
+                            .clicked()
+                        {
+                            self.overlay_options.wave_x = 375.0;
+                            self.overlay_options.wave_y = 375.0;
+                            self.overlay_options.wave_scale = 1.0;
+                            self.overlay_options.wave_adj = LayerAdjustments::default();
                             overlay_changed = true;
                         }
                     });
@@ -1560,7 +1689,7 @@ impl AirCardApp {
                                             EmbossStyle::StealthDark,
                                         ] {
                                             let is_sel = cur_emboss == style;
-                                            if ui.selectable_label(is_sel, style.display_name()).clicked() {
+                                            if ui.selectable_label(is_sel, style.display_name_lang(is_vi)).clicked() {
                                                 if self.overlay_options.details.emboss_style != style {
                                                     self.overlay_options.details.emboss_style = style;
                                                     overlay_changed = true;
@@ -1569,11 +1698,12 @@ impl AirCardApp {
                                         }
                                     });
 
-                                ui.label(egui::RichText::new("Backdrop:").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                                let backdrop_lbl = if is_vi { "Nền chữ:" } else { "Backdrop:" };
+                                ui.label(egui::RichText::new(backdrop_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                                 let cur_backdrop = self.overlay_options.details.backdrop;
                                 egui::ComboBox::from_id_salt("text_backdrop_select")
                                     .width(135.0)
-                                    .selected_text(egui::RichText::new(cur_backdrop.display_name()).size(11.0).color(md3::ON_SURFACE))
+                                    .selected_text(egui::RichText::new(cur_backdrop.display_name_lang(is_vi)).size(11.0).color(md3::ON_SURFACE))
                                     .show_ui(ui, |ui| {
                                         for b in [
                                             TextBackdropStyle::None,
@@ -1582,7 +1712,7 @@ impl AirCardApp {
                                             TextBackdropStyle::FrostedPills,
                                         ] {
                                             let is_sel = cur_backdrop == b;
-                                            if ui.selectable_label(is_sel, b.display_name()).clicked() {
+                                            if ui.selectable_label(is_sel, b.display_name_lang(is_vi)).clicked() {
                                                 if self.overlay_options.details.backdrop != b {
                                                     self.overlay_options.details.backdrop = b;
                                                     overlay_changed = true;
@@ -1591,7 +1721,8 @@ impl AirCardApp {
                                         }
                                     });
 
-                                ui.label(egui::RichText::new("Y-Pos:").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                                let ypos_lbl = if is_vi { "Vị trí Y:" } else { "Y-Pos:" };
+                                ui.label(egui::RichText::new(ypos_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                                 if ui.add(egui::DragValue::new(&mut self.overlay_options.details.vertical_offset).range(-80..=80).speed(1.0)).changed() {
                                     overlay_changed = true;
                                 }
@@ -1599,12 +1730,14 @@ impl AirCardApp {
 
                             ui.add_space(4.0);
                             ui.horizontal(|ui| {
-                                ui.label(egui::RichText::new("Card Number:").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                                let num_lbl = if is_vi { "Số thẻ:" } else { "Card Number:" };
+                                ui.label(egui::RichText::new(num_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                                 if ui.add(egui::TextEdit::singleline(&mut self.overlay_options.details.card_number).desired_width(140.0)).changed() {
                                     overlay_changed = true;
                                 }
 
-                                ui.label(egui::RichText::new("Valid Thru:").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                                let exp_lbl = if is_vi { "Hết hạn (MM/YY):" } else { "Valid Thru:" };
+                                ui.label(egui::RichText::new(exp_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                                 if ui.add(egui::TextEdit::singleline(&mut self.overlay_options.details.card_expiry).desired_width(48.0)).changed() {
                                     overlay_changed = true;
                                 }
@@ -1612,12 +1745,14 @@ impl AirCardApp {
 
                             ui.add_space(3.0);
                             ui.horizontal(|ui| {
-                                ui.label(egui::RichText::new("Cardholder:").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                                let holder_lbl = if is_vi { "Tên chủ thẻ:" } else { "Cardholder:" };
+                                ui.label(egui::RichText::new(holder_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                                 if ui.add(egui::TextEdit::singleline(&mut self.overlay_options.details.card_holder).desired_width(135.0)).changed() {
                                     overlay_changed = true;
                                 }
 
-                                ui.label(egui::RichText::new("Bank / Title:").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                                let bank_lbl = if is_vi { "Ngân hàng / Loại thẻ:" } else { "Bank / Title:" };
+                                ui.label(egui::RichText::new(bank_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                                 if ui.add(egui::TextEdit::singleline(&mut self.overlay_options.details.card_type_or_bank).desired_width(95.0)).changed() {
                                     overlay_changed = true;
                                 }
@@ -1632,12 +1767,14 @@ impl AirCardApp {
                 ui.add_space(16.0);
 
                 // Apply
-                ui.label(egui::RichText::new("Write to iPhone").strong().size(12.0).color(md3::ON_SURFACE));
+                let write_lbl = if is_vi { "Ghi vào iPhone" } else { "Write to iPhone" };
+                ui.label(egui::RichText::new(write_lbl).strong().size(12.0).color(md3::ON_SURFACE));
                 ui.add_space(4.0);
 
                 let can_flash = !self.is_busy && self.selected_udid.is_some() && !self.card_hash.trim().is_empty() && self.skin.is_some();
+                let apply_lbl = if is_vi { "Áp dụng giao diện thẻ" } else { "Apply Card Skin" };
                 let flash_btn = egui::Button::new(
-                    egui::RichText::new("Apply Card Skin").strong().size(14.0)
+                    egui::RichText::new(apply_lbl).strong().size(14.0)
                         .color(if can_flash { md3::ON_PRIMARY } else { md3::ON_SURFACE_VARIANT }),
                 )
                 .fill(if can_flash { md3::PRIMARY } else { md3::SURFACE_CONTAINER_HIGH })
@@ -1648,10 +1785,10 @@ impl AirCardApp {
                 if resp.clicked() { self.flash_card(); }
                 if !can_flash {
                     let mut r = Vec::new();
-                    if self.selected_udid.is_none() { r.push("connect iPhone"); }
-                    if self.card_hash.trim().is_empty() { r.push("enter card hash"); }
-                    if self.skin.is_none() { r.push("choose image"); }
-                    if !r.is_empty() { resp.on_disabled_hover_text(format!("Need: {}", r.join(", "))); }
+                    if self.selected_udid.is_none() { r.push(if is_vi { "kết nối iPhone qua USB" } else { "connect iPhone" }); }
+                    if self.card_hash.trim().is_empty() { r.push(if is_vi { "nhập mã pass hash" } else { "enter card hash" }); }
+                    if self.skin.is_none() { r.push(if is_vi { "chọn ảnh thẻ" } else { "choose image" }); }
+                    if !r.is_empty() { resp.on_disabled_hover_text(format!("{}: {}", if is_vi { "Cần" } else { "Need" }, r.join(", "))); }
                 }
 
                 if self.is_busy {
@@ -1666,20 +1803,37 @@ impl AirCardApp {
             // Right: preview
             let right = &mut cols[1];
             m3_card(right, |ui| {
-                ui.label(egui::RichText::new("Wallet Preview").strong().size(16.0).color(md3::ON_SURFACE));
+                let prev_title = if is_vi { "Xem trước Wallet" } else { "Wallet Preview" };
+                let prev_sub = if is_vi { "Khung thẻ 1536 x 969 px" } else { "1536 x 969 px pass canvas" };
+                ui.label(egui::RichText::new(prev_title).strong().size(16.0).color(md3::ON_SURFACE));
                 ui.add_space(4.0);
-                ui.label(egui::RichText::new("1536 x 969 px pass canvas").size(12.0).color(md3::ON_SURFACE_VARIANT));
+                ui.label(egui::RichText::new(prev_sub).size(12.0).color(md3::ON_SURFACE_VARIANT));
                 ui.add_space(8.0);
 
                 // Multi-layer control: Layer Selector Bar
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("Layer:").strong().size(11.0).color(md3::ON_SURFACE));
-                    for (layer, icon_label) in [
-                        (ActiveTransformLayer::Background, "🖼️ Background"),
-                        (ActiveTransformLayer::Finish, "✨ Finish"),
-                        (ActiveTransformLayer::Chip, "💳 Chip"),
-                        (ActiveTransformLayer::Logo, "🏷️ Logo"),
-                    ] {
+                    let layer_hdr = if is_vi { "Lớp:" } else { "Layer:" };
+                    ui.label(egui::RichText::new(layer_hdr).strong().size(11.0).color(md3::ON_SURFACE));
+                    let layer_buttons: &[(ActiveTransformLayer, &str)] = if is_vi {
+                        &[
+                            (ActiveTransformLayer::Background, "🖼️ Nền"),
+                            (ActiveTransformLayer::Finish, "✨ Finish"),
+                            (ActiveTransformLayer::Chip, "💳 Chip"),
+                            (ActiveTransformLayer::Wave, "📶 Sóng"),
+                            (ActiveTransformLayer::Logo, "🏷️ Logo"),
+                            (ActiveTransformLayer::Details, "🔢 Chi tiết"),
+                        ]
+                    } else {
+                        &[
+                            (ActiveTransformLayer::Background, "🖼️ Background"),
+                            (ActiveTransformLayer::Finish, "✨ Finish"),
+                            (ActiveTransformLayer::Chip, "💳 Chip"),
+                            (ActiveTransformLayer::Wave, "📶 Wave"),
+                            (ActiveTransformLayer::Logo, "🏷️ Logo"),
+                            (ActiveTransformLayer::Details, "🔢 Details"),
+                        ]
+                    };
+                    for &(layer, icon_label) in layer_buttons {
                         let is_active = self.active_layer == layer;
                         let btn = egui::Button::new(
                             egui::RichText::new(icon_label)
@@ -1729,10 +1883,26 @@ impl AirCardApp {
                                 egui::vec2(logo_w, logo_h),
                             );
 
+                            let wave_w = 75.0 * self.overlay_options.wave_scale;
+                            let wave_h = 95.0 * self.overlay_options.wave_scale;
+                            let wave_rect = egui::Rect::from_min_size(
+                                egui::pos2(self.overlay_options.wave_x, self.overlay_options.wave_y),
+                                egui::vec2(wave_w, wave_h),
+                            );
+
+                            let details_rect = egui::Rect::from_min_size(
+                                egui::pos2(120.0, 520.0 + self.overlay_options.details.vertical_offset as f32),
+                                egui::vec2(1100.0, 320.0),
+                            );
+
                             if self.overlay_options.show_chip && chip_rect.contains(egui::pos2(cx, cy)) {
                                 self.active_layer = ActiveTransformLayer::Chip;
+                            } else if self.overlay_options.show_contactless && wave_rect.contains(egui::pos2(cx, cy)) {
+                                self.active_layer = ActiveTransformLayer::Wave;
                             } else if self.overlay_options.network != PaymentNetwork::None && logo_rect.contains(egui::pos2(cx, cy)) {
                                 self.active_layer = ActiveTransformLayer::Logo;
+                            } else if self.overlay_options.details.show_details && details_rect.contains(egui::pos2(cx, cy)) {
+                                self.active_layer = ActiveTransformLayer::Details;
                             } else if self.overlay_options.finish == CardFinish::CustomTexture && self.active_layer == ActiveTransformLayer::Finish {
                                 // Keep finish selected if clicking empty background while finish layer is active
                             } else if self.active_layer != ActiveTransformLayer::Finish {
@@ -1758,9 +1928,16 @@ impl AirCardApp {
                                     self.overlay_options.chip_x += delta.x * scale_factor;
                                     self.overlay_options.chip_y += delta.y * scale_factor;
                                 }
+                                ActiveTransformLayer::Wave => {
+                                    self.overlay_options.wave_x += delta.x * scale_factor;
+                                    self.overlay_options.wave_y += delta.y * scale_factor;
+                                }
                                 ActiveTransformLayer::Logo => {
                                     self.overlay_options.logo_x += delta.x * scale_factor;
                                     self.overlay_options.logo_y += delta.y * scale_factor;
+                                }
+                                ActiveTransformLayer::Details => {
+                                    self.overlay_options.details.vertical_offset = (self.overlay_options.details.vertical_offset + (delta.y * scale_factor * 0.5) as i32).clamp(-120, 120);
                                 }
                             }
                             preview_changed = true;
@@ -1776,39 +1953,75 @@ impl AirCardApp {
                             }
                         });
                         if scroll_y != 0.0 {
-                            let factor = if scroll_y > 0.0 { 1.08 } else { 1.0 / 1.08 };
-                            match self.active_layer {
-                                ActiveTransformLayer::Background => {
-                                    let old_zoom = self.overlay_options.transform.zoom;
-                                    let new_zoom = (old_zoom * factor).clamp(0.05, 50.0);
-                                    if (new_zoom - old_zoom).abs() > 0.001 {
-                                        self.overlay_options.transform.zoom = new_zoom;
-                                        preview_changed = true;
+                            let shift_down = ui.input(|i| i.modifiers.shift);
+                            if shift_down {
+                                let rot_delta = if scroll_y > 0.0 { 3.0 } else { -3.0 };
+                                match self.active_layer {
+                                    ActiveTransformLayer::Background => {
+                                        self.overlay_options.transform.rotation = (self.overlay_options.transform.rotation + rot_delta).clamp(-180.0, 180.0);
+                                        self.overlay_options.bg_adj.rotation = self.overlay_options.transform.rotation;
+                                    }
+                                    ActiveTransformLayer::Finish => {
+                                        self.overlay_options.finish_adj.rotation = (self.overlay_options.finish_adj.rotation + rot_delta).clamp(-180.0, 180.0);
+                                    }
+                                    ActiveTransformLayer::Chip => {
+                                        self.overlay_options.chip_adj.rotation = (self.overlay_options.chip_adj.rotation + rot_delta).clamp(-180.0, 180.0);
+                                    }
+                                    ActiveTransformLayer::Wave => {
+                                        self.overlay_options.wave_adj.rotation = (self.overlay_options.wave_adj.rotation + rot_delta).clamp(-180.0, 180.0);
+                                    }
+                                    ActiveTransformLayer::Logo => {
+                                        self.overlay_options.logo_adj.rotation = (self.overlay_options.logo_adj.rotation + rot_delta).clamp(-180.0, 180.0);
+                                    }
+                                    ActiveTransformLayer::Details => {
+                                        self.overlay_options.details_adj.rotation = (self.overlay_options.details_adj.rotation + rot_delta).clamp(-180.0, 180.0);
                                     }
                                 }
-                                ActiveTransformLayer::Finish => {
-                                    let old_scale = self.overlay_options.finish_scale;
-                                    let new_scale = (old_scale * factor).clamp(0.1, 10.0);
-                                    if (new_scale - old_scale).abs() > 0.001 {
-                                        self.overlay_options.finish_scale = new_scale;
-                                        preview_changed = true;
+                                preview_changed = true;
+                            } else {
+                                let factor = if scroll_y > 0.0 { 1.08 } else { 1.0 / 1.08 };
+                                match self.active_layer {
+                                    ActiveTransformLayer::Background => {
+                                        let old_zoom = self.overlay_options.transform.zoom;
+                                        let new_zoom = (old_zoom * factor).clamp(0.05, 50.0);
+                                        if (new_zoom - old_zoom).abs() > 0.001 {
+                                            self.overlay_options.transform.zoom = new_zoom;
+                                            preview_changed = true;
+                                        }
                                     }
-                                }
-                                ActiveTransformLayer::Chip => {
-                                    let old_scale = self.overlay_options.chip_scale;
-                                    let new_scale = (old_scale * factor).clamp(0.2, 5.0);
-                                    if (new_scale - old_scale).abs() > 0.001 {
-                                        self.overlay_options.chip_scale = new_scale;
-                                        preview_changed = true;
+                                    ActiveTransformLayer::Finish => {
+                                        let old_scale = self.overlay_options.finish_scale;
+                                        let new_scale = (old_scale * factor).clamp(0.1, 10.0);
+                                        if (new_scale - old_scale).abs() > 0.001 {
+                                            self.overlay_options.finish_scale = new_scale;
+                                            preview_changed = true;
+                                        }
                                     }
-                                }
-                                ActiveTransformLayer::Logo => {
-                                    let old_scale = self.overlay_options.logo_scale;
-                                    let new_scale = (old_scale * factor).clamp(0.2, 5.0);
-                                    if (new_scale - old_scale).abs() > 0.001 {
-                                        self.overlay_options.logo_scale = new_scale;
-                                        preview_changed = true;
+                                    ActiveTransformLayer::Chip => {
+                                        let old_scale = self.overlay_options.chip_scale;
+                                        let new_scale = (old_scale * factor).clamp(0.2, 5.0);
+                                        if (new_scale - old_scale).abs() > 0.001 {
+                                            self.overlay_options.chip_scale = new_scale;
+                                            preview_changed = true;
+                                        }
                                     }
+                                    ActiveTransformLayer::Wave => {
+                                        let old_scale = self.overlay_options.wave_scale;
+                                        let new_scale = (old_scale * factor).clamp(0.2, 5.0);
+                                        if (new_scale - old_scale).abs() > 0.001 {
+                                            self.overlay_options.wave_scale = new_scale;
+                                            preview_changed = true;
+                                        }
+                                    }
+                                    ActiveTransformLayer::Logo => {
+                                        let old_scale = self.overlay_options.logo_scale;
+                                        let new_scale = (old_scale * factor).clamp(0.2, 5.0);
+                                        if (new_scale - old_scale).abs() > 0.001 {
+                                            self.overlay_options.logo_scale = new_scale;
+                                            preview_changed = true;
+                                        }
+                                    }
+                                    ActiveTransformLayer::Details => {}
                                 }
                             }
                         }
@@ -1849,6 +2062,19 @@ impl AirCardApp {
                                     egui::StrokeKind::Outside,
                                 );
                             }
+                            ActiveTransformLayer::Wave if self.overlay_options.show_contactless => {
+                                let wx = rect.left() + self.overlay_options.wave_x * canvas_to_preview;
+                                let wy = rect.top() + self.overlay_options.wave_y * canvas_to_preview;
+                                let ww = 75.0 * self.overlay_options.wave_scale * canvas_to_preview;
+                                let wh = 95.0 * self.overlay_options.wave_scale * canvas_to_preview;
+                                let wave_box = egui::Rect::from_min_size(egui::pos2(wx, wy), egui::vec2(ww, wh));
+                                painter.rect_stroke(
+                                    wave_box,
+                                    4.0,
+                                    egui::Stroke::new(1.5_f32, md3::PRIMARY),
+                                    egui::StrokeKind::Outside,
+                                );
+                            }
                             ActiveTransformLayer::Logo if self.overlay_options.network != PaymentNetwork::None => {
                                 let lx = rect.left() + self.overlay_options.logo_x * canvas_to_preview;
                                 let ly = rect.top() + self.overlay_options.logo_y * canvas_to_preview;
@@ -1858,6 +2084,19 @@ impl AirCardApp {
                                 painter.rect_stroke(
                                     logo_box,
                                     4.0,
+                                    egui::Stroke::new(1.5_f32, md3::PRIMARY),
+                                    egui::StrokeKind::Outside,
+                                );
+                            }
+                            ActiveTransformLayer::Details if self.overlay_options.details.show_details => {
+                                let dx = rect.left() + 120.0 * canvas_to_preview;
+                                let dy = rect.top() + (520.0 + self.overlay_options.details.vertical_offset as f32) * canvas_to_preview;
+                                let dw = 1100.0 * canvas_to_preview;
+                                let dh = 320.0 * canvas_to_preview;
+                                let details_box = egui::Rect::from_min_size(egui::pos2(dx, dy), egui::vec2(dw, dh));
+                                painter.rect_stroke(
+                                    details_box,
+                                    6.0,
                                     egui::Stroke::new(1.5_f32, md3::PRIMARY),
                                     egui::StrokeKind::Outside,
                                 );
@@ -1875,8 +2114,9 @@ impl AirCardApp {
                     } else {
                         painter.rect_filled(rect.translate(egui::vec2(1.0, 3.0)), corner_r, egui::Color32::from_black_alpha(50));
                         painter.rect_filled(rect, corner_r, md3::SURFACE_CONTAINER_HIGH);
+                        let no_art_lbl = if is_vi { "Chưa nạp ảnh thẻ" } else { "No artwork loaded" };
                         painter.text(rect.center(), egui::Align2::CENTER_CENTER,
-                            "No artwork loaded", egui::FontId::proportional(14.0), md3::ON_SURFACE_VARIANT);
+                            no_art_lbl, egui::FontId::proportional(14.0), md3::ON_SURFACE_VARIANT);
                     }
                 });
 
@@ -1884,12 +2124,169 @@ impl AirCardApp {
                     self.recompute_skin(ctx);
                 }
 
+                ui.add_space(8.0);
+
+                // -----------------------------------------------------------
+                // Interactive Layer Inspector (RGB Color Tint, Opacity, Hue, Saturation, Rotation)
+                // -----------------------------------------------------------
+                let active_layer = self.active_layer;
+                let layer_name_title = if is_vi {
+                    match active_layer {
+                        ActiveTransformLayer::Background => "🎨 Tuỳ biến Lớp: Nền thẻ (Background)",
+                        ActiveTransformLayer::Finish => "🎨 Tuỳ biến Lớp: Finish Surface",
+                        ActiveTransformLayer::Chip => "🎨 Tuỳ biến Lớp: Chip EMV",
+                        ActiveTransformLayer::Wave => "🎨 Tuỳ biến Lớp: Sóng Contactless (Shockwave)",
+                        ActiveTransformLayer::Logo => "🎨 Tuỳ biến Lớp: Logo Thương hiệu",
+                        ActiveTransformLayer::Details => "🎨 Tuỳ biến Lớp: Thông tin dập nổi (Details)",
+                    }
+                } else {
+                    match active_layer {
+                        ActiveTransformLayer::Background => "🎨 Layer Inspector: Background",
+                        ActiveTransformLayer::Finish => "🎨 Layer Inspector: Finish Surface",
+                        ActiveTransformLayer::Chip => "🎨 Layer Inspector: EMV Chip",
+                        ActiveTransformLayer::Wave => "🎨 Layer Inspector: Contactless Wave",
+                        ActiveTransformLayer::Logo => "🎨 Layer Inspector: Brand Logo",
+                        ActiveTransformLayer::Details => "🎨 Layer Inspector: Card Details",
+                    }
+                };
+
+                let mut adj = match active_layer {
+                    ActiveTransformLayer::Background => self.overlay_options.bg_adj,
+                    ActiveTransformLayer::Finish => self.overlay_options.finish_adj,
+                    ActiveTransformLayer::Chip => self.overlay_options.chip_adj,
+                    ActiveTransformLayer::Wave => self.overlay_options.wave_adj,
+                    ActiveTransformLayer::Logo => self.overlay_options.logo_adj,
+                    ActiveTransformLayer::Details => self.overlay_options.details_adj,
+                };
+
+                let mut inspector_changed = false;
+
+                egui::Frame::NONE
+                    .fill(md3::SURFACE_CONTAINER)
+                    .corner_radius(8.0)
+                    .inner_margin(egui::Margin::symmetric(10, 8))
+                    .stroke(egui::Stroke::new(1.0_f32, md3::OUTLINE_VARIANT))
+                    .show(ui, |ui| {
+                        // Header with layer title and Reset button
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(layer_name_title).strong().size(11.5).color(md3::PRIMARY));
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                let reset_layer_lbl = if is_vi { "↺ Reset Lớp" } else { "↺ Reset Layer" };
+                                if ui.button(egui::RichText::new(reset_layer_lbl).size(10.5).color(md3::ON_SURFACE_VARIANT)).clicked() {
+                                    adj = LayerAdjustments::default();
+                                    inspector_changed = true;
+                                }
+                            });
+                        });
+
+                        ui.add_space(6.0);
+
+                        // Row 1: RGB Color Picker & Tint Intensity & Opacity
+                        ui.horizontal(|ui| {
+                            let rgb_lbl = if is_vi { "Màu phủ RGB:" } else { "RGB Tint:" };
+                            ui.label(egui::RichText::new(rgb_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
+                            let mut srgb = [adj.tint_color[0], adj.tint_color[1], adj.tint_color[2]];
+                            if ui.color_edit_button_srgb(&mut srgb).changed() {
+                                adj.tint_color = srgb;
+                                if adj.tint_amount < 0.05 {
+                                    adj.tint_amount = 0.6;
+                                }
+                                inspector_changed = true;
+                            }
+
+                            let tint_lbl = if is_vi { "Mức phủ:" } else { "Tint:" };
+                            ui.label(egui::RichText::new(tint_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
+                            let mut tint_pct = (adj.tint_amount * 100.0).round() as i32;
+                            if ui.add(egui::Slider::new(&mut tint_pct, 0..=100).suffix("%")).changed() {
+                                adj.tint_amount = tint_pct as f32 / 100.0;
+                                inspector_changed = true;
+                            }
+
+                            let op_lbl = if is_vi { "Độ mờ/Đậm nhạt:" } else { "Opacity:" };
+                            ui.label(egui::RichText::new(op_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
+                            let mut op_pct = (adj.opacity * 100.0).round() as i32;
+                            if ui.add(egui::Slider::new(&mut op_pct, 0..=100).suffix("%")).changed() {
+                                adj.opacity = op_pct as f32 / 100.0;
+                                inspector_changed = true;
+                            }
+                        });
+
+                        ui.add_space(4.0);
+
+                        // Row 2: Hue Shift & Saturation
+                        ui.horizontal(|ui| {
+                            let hue_lbl = if is_vi { "Chuyển sắc độ (Hue):" } else { "Hue Shift:" };
+                            ui.label(egui::RichText::new(hue_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
+                            let mut hue_deg = adj.hue_shift.round() as i32;
+                            if ui.add(egui::Slider::new(&mut hue_deg, -180..=180).suffix("°")).changed() {
+                                adj.hue_shift = hue_deg as f32;
+                                inspector_changed = true;
+                            }
+
+                            let sat_lbl = if is_vi { "Bão hòa (Sat):" } else { "Saturation:" };
+                            ui.label(egui::RichText::new(sat_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
+                            let mut sat_pct = (adj.saturation * 100.0).round() as i32;
+                            if ui.add(egui::Slider::new(&mut sat_pct, 0..=200).suffix("%")).changed() {
+                                adj.saturation = sat_pct as f32 / 100.0;
+                                inspector_changed = true;
+                            }
+                        });
+
+                        ui.add_space(4.0);
+
+                        // Row 3: Rotation slider & quick angle presets
+                        ui.horizontal(|ui| {
+                            let rot_lbl = if is_vi { "Xoay (Rotation):" } else { "Rotation:" };
+                            ui.label(egui::RichText::new(rot_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
+                            let mut cur_rot = adj.rotation.round() as i32;
+                            if ui.add(egui::Slider::new(&mut cur_rot, -180..=180).suffix("°")).changed() {
+                                adj.rotation = cur_rot as f32;
+                                inspector_changed = true;
+                            }
+
+                            for deg in [-90, 0, 90, 180] {
+                                if ui.button(egui::RichText::new(format!("{}°", deg)).size(10.0).color(md3::ON_SURFACE_VARIANT)).clicked() {
+                                    adj.rotation = deg as f32;
+                                    inspector_changed = true;
+                                }
+                            }
+                        });
+                    });
+
+                if inspector_changed {
+                    match active_layer {
+                        ActiveTransformLayer::Background => {
+                            self.overlay_options.bg_adj = adj;
+                            self.overlay_options.transform.rotation = adj.rotation;
+                        }
+                        ActiveTransformLayer::Finish => self.overlay_options.finish_adj = adj,
+                        ActiveTransformLayer::Chip => self.overlay_options.chip_adj = adj,
+                        ActiveTransformLayer::Wave => self.overlay_options.wave_adj = adj,
+                        ActiveTransformLayer::Logo => self.overlay_options.logo_adj = adj,
+                        ActiveTransformLayer::Details => self.overlay_options.details_adj = adj,
+                    }
+                    self.recompute_skin(ctx);
+                }
+
                 ui.add_space(6.0);
-                let layer_hint = match self.active_layer {
-                    ActiveTransformLayer::Background => "Active Layer: Background (Drag card to pan • Scroll to zoom)",
-                    ActiveTransformLayer::Finish => "Active Layer: Finish Texture (Drag card to pan • Scroll to zoom)",
-                    ActiveTransformLayer::Chip => "Active Layer: EMV Chip (Drag to reposition • Scroll to resize)",
-                    ActiveTransformLayer::Logo => "Active Layer: Brand Logo (Drag to reposition • Scroll to resize)",
+                let layer_hint = if is_vi {
+                    match self.active_layer {
+                        ActiveTransformLayer::Background => "Lớp đang chọn: Nền thẻ (Kéo chuột để di chuyển • Cuộn chuột để thu phóng • Giữ Shift+Cuộn để xoay)",
+                        ActiveTransformLayer::Finish => "Lớp đang chọn: Finish Texture (Kéo chuột để di chuyển • Cuộn chuột để thu phóng • Giữ Shift+Cuộn để xoay)",
+                        ActiveTransformLayer::Chip => "Lớp đang chọn: Chip EMV (Kéo chuột để di chuyển • Cuộn chuột để đổi cỡ • Giữ Shift+Cuộn để xoay)",
+                        ActiveTransformLayer::Wave => "Lớp đang chọn: Sóng Contactless (Kéo chuột để di chuyển • Cuộn chuột để đổi cỡ • Giữ Shift+Cuộn để xoay)",
+                        ActiveTransformLayer::Logo => "Lớp đang chọn: Logo thương hiệu (Kéo chuột để di chuyển • Cuộn chuột để đổi cỡ • Giữ Shift+Cuộn để xoay)",
+                        ActiveTransformLayer::Details => "Lớp đang chọn: Thông tin dập nổi (Kéo chuột để chỉnh vị trí dọc • Giữ Shift+Cuộn để xoay)",
+                    }
+                } else {
+                    match self.active_layer {
+                        ActiveTransformLayer::Background => "Active Layer: Background (Drag card to pan • Scroll to zoom • Shift+Scroll to rotate)",
+                        ActiveTransformLayer::Finish => "Active Layer: Finish Texture (Drag card to pan • Scroll to zoom • Shift+Scroll to rotate)",
+                        ActiveTransformLayer::Chip => "Active Layer: EMV Chip (Drag to reposition • Scroll to resize • Shift+Scroll to rotate)",
+                        ActiveTransformLayer::Wave => "Active Layer: Contactless Wave (Drag to reposition • Scroll to resize • Shift+Scroll to rotate)",
+                        ActiveTransformLayer::Logo => "Active Layer: Brand Logo (Drag to reposition • Scroll to resize • Shift+Scroll to rotate)",
+                        ActiveTransformLayer::Details => "Active Layer: Card Details (Drag to adjust Y-position • Shift+Scroll to rotate)",
+                    }
                 };
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new(format!("💡 {}", layer_hint)).size(10.5).color(md3::PRIMARY));
@@ -1899,59 +2296,84 @@ impl AirCardApp {
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new("1536x969").size(11.0).color(md3::ON_SURFACE_VARIANT));
                     ui.label(egui::RichText::new("|").size(11.0).color(md3::OUTLINE_VARIANT));
-                    ui.label(egui::RichText::new("1.585 ratio").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                    let ratio_lbl = if is_vi { "Tỉ lệ 1.585" } else { "1.585 ratio" };
+                    ui.label(egui::RichText::new(ratio_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                     ui.label(egui::RichText::new("|").size(11.0).color(md3::OUTLINE_VARIANT));
                     if self.skin.is_some() {
-                        ui.label(egui::RichText::new("Ready").size(11.0).color(md3::SUCCESS));
+                        let ready_lbl = if is_vi { "Sẵn sàng" } else { "Ready" };
+                        ui.label(egui::RichText::new(ready_lbl).size(11.0).color(md3::SUCCESS));
                     } else {
-                        ui.label(egui::RichText::new("No image").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                        let no_img_lbl = if is_vi { "Chưa có ảnh" } else { "No image" };
+                        ui.label(egui::RichText::new(no_img_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                     }
                 });
                 ui.add_space(8.0);
-                ui.label(egui::RichText::new("After applying, force close Apple Wallet and reopen it.").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                let note_lbl = if is_vi {
+                    "Sau khi áp dụng, vuốt tắt ứng dụng Apple Wallet trên iPhone và mở lại."
+                } else {
+                    "After applying, force close Apple Wallet and reopen it."
+                };
+                ui.label(egui::RichText::new(note_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
             });
         });
     }
 
     fn show_passcode_tab(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+        let is_vi = self.ui_language == UiLanguage::Vietnamese;
         ui.columns(2, |cols| {
-            // Left: config
             let left = &mut cols[0];
             m3_card(left, |ui| {
-                ui.label(egui::RichText::new("Passcode Theme").strong().size(16.0).color(md3::ON_SURFACE));
+                let thm_title = if is_vi { "Giao diện Mật mã (Passcode Theme)" } else { "Passcode Theme" };
+                let thm_sub = if is_vi { "Tùy biến bàn phím quay số màn hình khóa từ Cowabunga hoặc Nugget" } else { "Custom lockscreen keypad from Cowabunga or Nugget" };
+                ui.label(egui::RichText::new(thm_title).strong().size(16.0).color(md3::ON_SURFACE));
                 ui.add_space(4.0);
-                ui.label(egui::RichText::new("Custom lockscreen keypad from Cowabunga or Nugget").size(12.0).color(md3::ON_SURFACE_VARIANT));
+                ui.label(egui::RichText::new(thm_sub).size(12.0).color(md3::ON_SURFACE_VARIANT));
                 ui.add_space(16.0);
 
                 // Theme file
-                ui.label(egui::RichText::new("Theme Package").strong().size(12.0).color(md3::ON_SURFACE));
-                ui.label(egui::RichText::new("Choose a .passthm archive containing dialer artwork").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                let pkg_hdr = if is_vi { "Gói theme (.passthm)" } else { "Theme Package" };
+                let pkg_sub = if is_vi { "Chọn tệp nén .passthm chứa hình ảnh bàn phím quay số" } else { "Choose a .passthm archive containing dialer artwork" };
+                ui.label(egui::RichText::new(pkg_hdr).strong().size(12.0).color(md3::ON_SURFACE));
+                ui.label(egui::RichText::new(pkg_sub).size(11.0).color(md3::ON_SURFACE_VARIANT));
                 ui.add_space(4.0);
-                if m3_button_filled(ui, "Choose .passthm...") { self.select_theme_file(ctx); }
+                let choose_thm_lbl = if is_vi { "Chọn .passthm..." } else { "Choose .passthm..." };
+                if m3_button_filled(ui, choose_thm_lbl) { self.select_theme_file(ctx); }
 
                 if let Some(theme) = &self.loaded_theme {
-                    let fname = self.theme_path.as_ref()
-                        .and_then(|p| p.file_name()).and_then(|n| n.to_str()).unwrap_or("theme.passthm");
                     ui.add_space(4.0);
-                    ui.label(egui::RichText::new(format!("{} - {} assets", fname, theme.items.len())).size(11.0).color(md3::PRIMARY));
+                    let fname = self.theme_path.as_ref()
+                        .and_then(|p| p.file_name()).and_then(|n| n.to_str()).unwrap_or("theme");
+                    let asset_txt = if is_vi { "tệp tài nguyên" } else { "assets" };
+                    ui.label(egui::RichText::new(format!("{} - {} {}", fname, theme.items.len(), asset_txt)).size(11.0).color(md3::PRIMARY));
                 }
 
                 ui.add_space(16.0);
 
                 // iOS version
-                ui.label(egui::RichText::new("Target iOS Cache").strong().size(12.0).color(md3::ON_SURFACE));
-                ui.label(egui::RichText::new("Select cache format based on connected iOS version").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                let cache_hdr = if is_vi { "Định dạng Cache iOS mục tiêu" } else { "Target iOS Cache" };
+                let cache_sub = if is_vi { "Chọn cấu trúc cache tương ứng với phiên bản iOS đã kết nối" } else { "Select cache format based on connected iOS version" };
+                ui.label(egui::RichText::new(cache_hdr).strong().size(12.0).color(md3::ON_SURFACE));
+                ui.label(egui::RichText::new(cache_sub).size(11.0).color(md3::ON_SURFACE_VARIANT));
                 ui.add_space(4.0);
                 let combo_w = (ui.available_width() - 4.0).max(150.0);
                 let mut ver_changed = false;
+                let auto_label = if is_vi { "Tự động (TelephonyUI-10)" } else { "Auto (TelephonyUI-10)" };
+                let legacy_label = if is_vi { "TelephonyUI-8 (Cũ hơn)" } else { "TelephonyUI-8 (Legacy)" };
+                let cur_telephony_display = if is_vi && self.forced_telephony_ver == "Auto (TelephonyUI-10)" {
+                    auto_label
+                } else if is_vi && self.forced_telephony_ver == "TelephonyUI-8" {
+                    legacy_label
+                } else {
+                    &self.forced_telephony_ver
+                };
                 egui::ComboBox::from_id_salt("telephony_combo")
                     .width(combo_w)
-                    .selected_text(&self.forced_telephony_ver)
+                    .selected_text(cur_telephony_display)
                     .show_ui(ui, |ui| {
-                        ver_changed |= ui.selectable_value(&mut self.forced_telephony_ver, "Auto (TelephonyUI-10)".into(), "Auto (TelephonyUI-10)").clicked();
+                        ver_changed |= ui.selectable_value(&mut self.forced_telephony_ver, "Auto (TelephonyUI-10)".into(), auto_label).clicked();
                         ver_changed |= ui.selectable_value(&mut self.forced_telephony_ver, "TelephonyUI-10".into(), "TelephonyUI-10 (iOS 18+)").clicked();
                         ver_changed |= ui.selectable_value(&mut self.forced_telephony_ver, "TelephonyUI-9".into(), "TelephonyUI-9 (iOS 16-17)").clicked();
-                        ver_changed |= ui.selectable_value(&mut self.forced_telephony_ver, "TelephonyUI-8".into(), "TelephonyUI-8 (Legacy)").clicked();
+                        ver_changed |= ui.selectable_value(&mut self.forced_telephony_ver, "TelephonyUI-8".into(), legacy_label).clicked();
                     });
 
                 if ver_changed {
@@ -1963,19 +2385,27 @@ impl AirCardApp {
                 ui.add_space(16.0);
 
                 // Keypad Language
-                ui.label(egui::RichText::new("Keypad Language").strong().size(12.0).color(md3::ON_SURFACE));
-                ui.label(egui::RichText::new("Subtext alphabet layout (English, Russian, Ukrainian, Japanese, or Universal)").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                let lang_hdr = if is_vi { "Ngôn ngữ bàn phím" } else { "Keypad Language" };
+                let lang_sub = if is_vi { "Bố cục chữ cái phụ dưới số (English, Russian, Ukrainian, Japanese, hoặc Universal)" } else { "Subtext alphabet layout (English, Russian, Ukrainian, Japanese, or Universal)" };
+                ui.label(egui::RichText::new(lang_hdr).strong().size(12.0).color(md3::ON_SURFACE));
+                ui.label(egui::RichText::new(lang_sub).size(11.0).color(md3::ON_SURFACE_VARIANT));
                 ui.add_space(4.0);
                 let mut lang_changed = false;
+                let univ_label = if is_vi { "Tất cả ngôn ngữ (Universal)" } else { "All Languages (Universal)" };
+                let cur_keypad_lang_display = if is_vi && self.keypad_language == "All Languages (Universal)" {
+                    univ_label
+                } else {
+                    &self.keypad_language
+                };
                 egui::ComboBox::from_id_salt("keypad_lang_combo")
                     .width(combo_w)
-                    .selected_text(egui::RichText::new(&self.keypad_language).color(md3::ON_SURFACE))
+                    .selected_text(egui::RichText::new(cur_keypad_lang_display).color(md3::ON_SURFACE))
                     .show_ui(ui, |ui| {
                         lang_changed |= ui.selectable_value(&mut self.keypad_language, "English".into(), "English").clicked();
                         lang_changed |= ui.selectable_value(&mut self.keypad_language, "Russian".into(), "Russian").clicked();
                         lang_changed |= ui.selectable_value(&mut self.keypad_language, "Ukrainian".into(), "Ukrainian").clicked();
                         lang_changed |= ui.selectable_value(&mut self.keypad_language, "Japanese".into(), "Japanese").clicked();
-                        lang_changed |= ui.selectable_value(&mut self.keypad_language, "All Languages (Universal)".into(), "All Languages (Universal)").clicked();
+                        lang_changed |= ui.selectable_value(&mut self.keypad_language, "All Languages (Universal)".into(), univ_label).clicked();
                     });
 
                 if lang_changed {
@@ -1989,12 +2419,18 @@ impl AirCardApp {
                 // Bold Font Toggle
                 let mut bold_changed = false;
                 ui.horizontal(|ui| {
-                    if ui.checkbox(&mut self.passcode_bold, egui::RichText::new("Bold Text (iOS Accessibility)").strong().size(12.0).color(md3::ON_SURFACE)).changed() {
+                    let bold_lbl = if is_vi { "Chữ đậm (Trợ năng iOS - Bold Text)" } else { "Bold Text (iOS Accessibility)" };
+                    if ui.checkbox(&mut self.passcode_bold, egui::RichText::new(bold_lbl).strong().size(12.0).color(md3::ON_SURFACE)).changed() {
                         bold_changed = true;
                     }
                 });
+                let bold_sub = if is_vi {
+                    "Tạo ảnh *-bold.png cho thiết bị đã BẬT Chữ đậm trong Cài đặt iPhone ➔ Màn hình & Độ sáng"
+                } else {
+                    "Generates *-bold.png for devices with Bold Text turned ON in iPhone Settings -> Display"
+                };
                 ui.label(
-                    egui::RichText::new("Generates *-bold.png for devices with Bold Text turned ON in iPhone Settings -> Display")
+                    egui::RichText::new(bold_sub)
                         .size(11.0)
                         .color(md3::ON_SURFACE_VARIANT),
                 );
@@ -2008,12 +2444,14 @@ impl AirCardApp {
                 ui.add_space(16.0);
 
                 // Apply
-                ui.label(egui::RichText::new("Write to iPhone").strong().size(12.0).color(md3::ON_SURFACE));
+                let write_lbl = if is_vi { "Ghi dữ liệu vào iPhone" } else { "Write to iPhone" };
+                ui.label(egui::RichText::new(write_lbl).strong().size(12.0).color(md3::ON_SURFACE));
                 ui.add_space(4.0);
 
                 let can_flash = !self.is_busy && self.selected_udid.is_some() && self.loaded_theme.is_some();
+                let apply_thm_lbl = if is_vi { "Áp dụng giao diện Mật mã" } else { "Apply Passcode Theme" };
                 let flash_btn = egui::Button::new(
-                    egui::RichText::new("Apply Passcode Theme").strong().size(14.0)
+                    egui::RichText::new(apply_thm_lbl).strong().size(14.0)
                         .color(if can_flash { md3::ON_PRIMARY } else { md3::ON_SURFACE_VARIANT }),
                 )
                 .fill(if can_flash { md3::PRIMARY } else { md3::SURFACE_CONTAINER_HIGH })
@@ -2024,9 +2462,9 @@ impl AirCardApp {
                 if resp.clicked() { self.flash_theme(); }
                 if !can_flash {
                     let mut r = Vec::new();
-                    if self.selected_udid.is_none() { r.push("connect iPhone"); }
-                    if self.loaded_theme.is_none() { r.push("select theme"); }
-                    if !r.is_empty() { resp.on_disabled_hover_text(format!("Need: {}", r.join(", "))); }
+                    if self.selected_udid.is_none() { r.push(if is_vi { "kết nối iPhone" } else { "connect iPhone" }); }
+                    if self.loaded_theme.is_none() { r.push(if is_vi { "chọn theme" } else { "select theme" }); }
+                    if !r.is_empty() { resp.on_disabled_hover_text(format!("{}: {}", if is_vi { "Cần" } else { "Need" }, r.join(", "))); }
                 }
 
                 if self.is_busy {
@@ -2041,9 +2479,11 @@ impl AirCardApp {
             // Right: preview
             let right = &mut cols[1];
             m3_card(right, |ui| {
-                ui.label(egui::RichText::new("Keypad Preview").strong().size(16.0).color(md3::ON_SURFACE));
+                let prev_title = if is_vi { "Xem trước bàn phím số" } else { "Keypad Preview" };
+                let prev_sub = if is_vi { "Hình ảnh nút bấm quay số màn hình khóa" } else { "Dialer button artwork" };
+                ui.label(egui::RichText::new(prev_title).strong().size(16.0).color(md3::ON_SURFACE));
                 ui.add_space(4.0);
-                ui.label(egui::RichText::new("Dialer button artwork").size(12.0).color(md3::ON_SURFACE_VARIANT));
+                ui.label(egui::RichText::new(prev_sub).size(12.0).color(md3::ON_SURFACE_VARIANT));
                 ui.add_space(12.0);
 
                 let pass_w = (ui.available_width() - 8.0).clamp(240.0, 360.0);
@@ -2054,8 +2494,9 @@ impl AirCardApp {
                         let (rect, _) = ui.allocate_exact_size(egui::vec2(pass_w, pass_h), egui::Sense::hover());
                         let painter = ui.painter();
                         painter.rect_filled(rect, 16.0, md3::SURFACE_CONTAINER_HIGH);
+                        let no_thm = if is_vi { "Chưa nạp theme" } else { "No theme loaded" };
                         painter.text(rect.center(), egui::Align2::CENTER_CENTER,
-                            "No theme loaded", egui::FontId::proportional(14.0), md3::ON_SURFACE_VARIANT);
+                            no_thm, egui::FontId::proportional(14.0), md3::ON_SURFACE_VARIANT);
                     } else {
                         let (rect, _) = ui.allocate_exact_size(egui::vec2(pass_w, pass_h), egui::Sense::hover());
                         let painter = ui.painter();
@@ -2110,80 +2551,113 @@ impl AirCardApp {
 
                 ui.add_space(12.0);
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("3x4 Keypad").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                    let pad_lbl = if is_vi { "Bàn phím 3x4" } else { "3x4 Keypad" };
+                    ui.label(egui::RichText::new(pad_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                     ui.label(egui::RichText::new("|").size(11.0).color(md3::OUTLINE_VARIANT));
                     ui.label(egui::RichText::new("TelephonyUI").size(11.0).color(md3::ON_SURFACE_VARIANT));
                     ui.label(egui::RichText::new("|").size(11.0).color(md3::OUTLINE_VARIANT));
                     if self.loaded_theme.is_some() {
-                        ui.label(egui::RichText::new("Ready").size(11.0).color(md3::SUCCESS));
+                        let ready_lbl = if is_vi { "Sẵn sàng" } else { "Ready" };
+                        ui.label(egui::RichText::new(ready_lbl).size(11.0).color(md3::SUCCESS));
                     } else {
-                        ui.label(egui::RichText::new("No theme").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                        let no_thm_lbl = if is_vi { "Chưa có theme" } else { "No theme" };
+                        ui.label(egui::RichText::new(no_thm_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                     }
                 });
                 ui.add_space(8.0);
-                ui.label(egui::RichText::new("After applying, lock your iPhone to see the new keypad.").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                let lock_hint = if is_vi {
+                    "Sau khi áp dụng, khóa màn hình iPhone để kiểm tra giao diện bàn phím mới."
+                } else {
+                    "After applying, lock your iPhone to see the new keypad."
+                };
+                ui.label(egui::RichText::new(lock_hint).size(11.0).color(md3::ON_SURFACE_VARIANT));
             });
         });
     }
 
     fn show_help_tab(&mut self, ui: &mut egui::Ui) {
-        ui.columns(2, |cols| {
-            let left = &mut cols[0];
-            m3_card(left, |ui| {
-                ui.label(egui::RichText::new("Setup & Card Hash Guide").strong().size(16.0).color(md3::ON_SURFACE));
-                ui.add_space(4.0);
-                ui.label(egui::RichText::new("Everything you need to connect and capture your card").size(12.0).color(md3::ON_SURFACE_VARIANT));
-                ui.add_space(16.0);
-
-                ui.label(egui::RichText::new("Prerequisites").strong().size(12.0).color(md3::ON_SURFACE));
-                ui.add_space(6.0);
-                ui.label(egui::RichText::new("- 64-bit iTunes or Apple Mobile Device Support installed").size(11.5).color(md3::ON_SURFACE_VARIANT));
-                ui.label(egui::RichText::new("- Connect iPhone via USB-C or Lightning cable").size(11.5).color(md3::ON_SURFACE_VARIANT));
-                ui.label(egui::RichText::new("- Unlock iPhone and tap \"Trust this Computer\"").size(11.5).color(md3::ON_SURFACE_VARIANT));
-
-                ui.add_space(18.0);
-
-                ui.label(egui::RichText::new("Finding Your Card Hash").strong().size(12.0).color(md3::ON_SURFACE));
-                ui.add_space(6.0);
-                ui.label(egui::RichText::new("1. Click \"Scan\" in the Wallet tab").size(11.5).color(md3::ON_SURFACE_VARIANT));
-                ui.label(egui::RichText::new("2. Open Apple Wallet on your iPhone").size(11.5).color(md3::ON_SURFACE_VARIANT));
-                ui.label(egui::RichText::new("3. Tap the card you want to customize").size(11.5).color(md3::ON_SURFACE_VARIANT));
-                ui.label(egui::RichText::new("4. AirCard captures the pass hash automatically").size(11.5).color(md3::ON_SURFACE_VARIANT));
-                ui.label(egui::RichText::new("5. Click \"Stop\" once detected").size(11.5).color(md3::ON_SURFACE_VARIANT));
-            });
-
-            let right = &mut cols[1];
-            m3_card(right, |ui| {
-                ui.label(egui::RichText::new("Activation & Theme Guide").strong().size(16.0).color(md3::ON_SURFACE));
-                ui.add_space(4.0);
-                ui.label(egui::RichText::new("Applying skins and dialer keypad packages").size(12.0).color(md3::ON_SURFACE_VARIANT));
-                ui.add_space(16.0);
-
-                ui.label(egui::RichText::new("Activating Apple Wallet Skin").strong().size(12.0).color(md3::ON_SURFACE));
-                ui.add_space(6.0);
-                ui.label(egui::RichText::new("1. Click \"Apply Card Skin\" and wait for completion").size(11.5).color(md3::ON_SURFACE_VARIANT));
-                ui.label(egui::RichText::new("2. Open App Switcher on iPhone (swipe up from bottom)").size(11.5).color(md3::ON_SURFACE_VARIANT));
-                ui.label(egui::RichText::new("3. Force close Apple Wallet by swiping up on it").size(11.5).color(md3::ON_SURFACE_VARIANT));
-                ui.label(egui::RichText::new("4. Reopen Wallet - your new skin appears!").size(11.5).color(md3::ON_SURFACE_VARIANT));
-
-                ui.add_space(18.0);
-
-                ui.label(egui::RichText::new("Passcode Themes (.passthm)").strong().size(12.0).color(md3::ON_SURFACE));
-                ui.add_space(6.0);
-                ui.label(egui::RichText::new("- Compatible with Cowabunga & Nugget theme packages").size(11.5).color(md3::ON_SURFACE_VARIANT));
-                ui.label(egui::RichText::new("- iOS 18+: Select \"Auto (TelephonyUI-10)\"").size(11.5).color(md3::ON_SURFACE_VARIANT));
-                ui.label(egui::RichText::new("- iOS 16-17: Select \"TelephonyUI-9\"").size(11.5).color(md3::ON_SURFACE_VARIANT));
-                ui.label(egui::RichText::new("- Lock screen to verify your updated keypad artwork").size(11.5).color(md3::ON_SURFACE_VARIANT));
-            });
-        });
-    }
-
-        fn show_sources_tab(&mut self, ui: &mut egui::Ui) {
         let is_vi = self.ui_language == UiLanguage::Vietnamese;
         ui.columns(2, |cols| {
             let left = &mut cols[0];
             m3_card(left, |ui| {
-                let title = if is_vi { "AIrCard-CMaku (Phiên bản Windows)" } else { "AIrCard-CMaku (Windows Edition)" };
+                let title = if is_vi { "Hướng dẫn kết nối & Quét mã thẻ" } else { "Setup & Card Hash Guide" };
+                let subtitle = if is_vi { "Tất cả những gì bạn cần để kết nối thiết bị và lấy mã thẻ" } else { "Everything you need to connect and capture your card" };
+                ui.label(egui::RichText::new(title).strong().size(16.0).color(md3::ON_SURFACE));
+                ui.add_space(4.0);
+                ui.label(egui::RichText::new(subtitle).size(12.0).color(md3::ON_SURFACE_VARIANT));
+                ui.add_space(16.0);
+
+                let prereq_hdr = if is_vi { "Điều kiện cần" } else { "Prerequisites" };
+                ui.label(egui::RichText::new(prereq_hdr).strong().size(12.0).color(md3::ON_SURFACE));
+                ui.add_space(6.0);
+                let p1 = if is_vi { "- Đã cài đặt iTunes 64-bit hoặc Apple Mobile Device Support" } else { "- 64-bit iTunes or Apple Mobile Device Support installed" };
+                let p2 = if is_vi { "- Kết nối iPhone qua cáp USB-C hoặc Lightning chính hãng" } else { "- Connect iPhone via USB-C or Lightning cable" };
+                let p3 = if is_vi { "- Mở khóa iPhone và bấm 'Tin cậy máy tính này'" } else { "- Unlock iPhone and tap 'Trust this Computer'" };
+                ui.label(egui::RichText::new(p1).size(11.5).color(md3::ON_SURFACE_VARIANT));
+                ui.label(egui::RichText::new(p2).size(11.5).color(md3::ON_SURFACE_VARIANT));
+                ui.label(egui::RichText::new(p3).size(11.5).color(md3::ON_SURFACE_VARIANT));
+
+                ui.add_space(18.0);
+
+                let find_hdr = if is_vi { "Cách lấy mã Hash thẻ của bạn" } else { "Finding Your Card Hash" };
+                ui.label(egui::RichText::new(find_hdr).strong().size(12.0).color(md3::ON_SURFACE));
+                ui.add_space(6.0);
+                let s1 = if is_vi { "1. Bấm nút 'Quét' trong tab Thẻ Apple Pay" } else { "1. Click 'Scan' in the Wallet tab" };
+                let s2 = if is_vi { "2. Mở ứng dụng Apple Wallet trên iPhone" } else { "2. Open Apple Wallet on your iPhone" };
+                let s3 = if is_vi { "3. Chạm vào thẻ bạn muốn tùy biến giao diện" } else { "3. Tap the card you want to customize" };
+                let s4 = if is_vi { "4. AirCard sẽ tự động nhận diện mã pass hash qua syslog" } else { "4. AirCard captures the pass hash automatically" };
+                let s5 = if is_vi { "5. Bấm 'Dừng' sau khi mã thẻ đã được nhận diện" } else { "5. Click 'Stop' once detected" };
+                ui.label(egui::RichText::new(s1).size(11.5).color(md3::ON_SURFACE_VARIANT));
+                ui.label(egui::RichText::new(s2).size(11.5).color(md3::ON_SURFACE_VARIANT));
+                ui.label(egui::RichText::new(s3).size(11.5).color(md3::ON_SURFACE_VARIANT));
+                ui.label(egui::RichText::new(s4).size(11.5).color(md3::ON_SURFACE_VARIANT));
+                ui.label(egui::RichText::new(s5).size(11.5).color(md3::ON_SURFACE_VARIANT));
+            });
+
+            let right = &mut cols[1];
+            m3_card(right, |ui| {
+                let act_title = if is_vi { "Hướng dẫn kích hoạt & Cài đặt Theme" } else { "Activation & Theme Guide" };
+                let act_sub = if is_vi { "Kích hoạt giao diện thẻ và gói bàn phím số" } else { "Applying skins and dialer keypad packages" };
+                ui.label(egui::RichText::new(act_title).strong().size(16.0).color(md3::ON_SURFACE));
+                ui.add_space(4.0);
+                ui.label(egui::RichText::new(act_sub).size(12.0).color(md3::ON_SURFACE_VARIANT));
+                ui.add_space(16.0);
+
+                let act_hdr = if is_vi { "Kích hoạt giao diện thẻ Apple Wallet" } else { "Activating Apple Wallet Skin" };
+                ui.label(egui::RichText::new(act_hdr).strong().size(12.0).color(md3::ON_SURFACE));
+                ui.add_space(6.0);
+                let as1 = if is_vi { "1. Bấm 'Áp dụng giao diện thẻ' và chờ hệ thống hoàn tất" } else { "1. Click 'Apply Card Skin' and wait for completion" };
+                let as2 = if is_vi { "2. Mở App Switcher trên iPhone (vuốt từ dưới đáy màn hình lên)" } else { "2. Open App Switcher on iPhone (swipe up from bottom)" };
+                let as3 = if is_vi { "3. Vuốt tắt hoàn toàn ứng dụng Apple Wallet" } else { "3. Force close Apple Wallet by swiping up on it" };
+                let as4 = if is_vi { "4. Mở lại Apple Wallet - giao diện thẻ mới sẽ xuất hiện ngay!" } else { "4. Reopen Wallet - your new skin appears!" };
+                ui.label(egui::RichText::new(as1).size(11.5).color(md3::ON_SURFACE_VARIANT));
+                ui.label(egui::RichText::new(as2).size(11.5).color(md3::ON_SURFACE_VARIANT));
+                ui.label(egui::RichText::new(as3).size(11.5).color(md3::ON_SURFACE_VARIANT));
+                ui.label(egui::RichText::new(as4).size(11.5).color(md3::ON_SURFACE_VARIANT));
+
+                ui.add_space(18.0);
+
+                let thm_hdr = if is_vi { "Gói theme bàn phím số (.passthm)" } else { "Passcode Themes (.passthm)" };
+                ui.label(egui::RichText::new(thm_hdr).strong().size(12.0).color(md3::ON_SURFACE));
+                ui.add_space(6.0);
+                let pt1 = if is_vi { "- Tương thích hoàn toàn với các gói theme Cowabunga & Nugget" } else { "- Compatible with Cowabunga & Nugget theme packages" };
+                let pt2 = if is_vi { "- iOS 18+: Chọn 'Auto (TelephonyUI-10)'" } else { "- iOS 18+: Select 'Auto (TelephonyUI-10)'" };
+                let pt3 = if is_vi { "- iOS 16-17: Chọn 'TelephonyUI-9'" } else { "- iOS 16-17: Select 'TelephonyUI-9'" };
+                let pt4 = if is_vi { "- Khóa màn hình iPhone để kiểm tra giao diện bàn phím mới" } else { "- Lock screen to verify your updated keypad artwork" };
+                ui.label(egui::RichText::new(pt1).size(11.5).color(md3::ON_SURFACE_VARIANT));
+                ui.label(egui::RichText::new(pt2).size(11.5).color(md3::ON_SURFACE_VARIANT));
+                ui.label(egui::RichText::new(pt3).size(11.5).color(md3::ON_SURFACE_VARIANT));
+                ui.label(egui::RichText::new(pt4).size(11.5).color(md3::ON_SURFACE_VARIANT));
+            });
+        });
+    }
+
+    fn show_sources_tab(&mut self, ui: &mut egui::Ui) {
+        let is_vi = self.ui_language == UiLanguage::Vietnamese;
+        ui.columns(2, |cols| {
+            let left = &mut cols[0];
+            m3_card(left, |ui| {
+                let title = if is_vi { "AirCard-CMaku (Phiên bản Windows)" } else { "AirCard-CMaku (Windows Edition)" };
                 let subtitle = if is_vi {
                     "Bản mod tùy biến dành cho Windows của AirCard Apple Wallet & Passcode Studio"
                 } else {

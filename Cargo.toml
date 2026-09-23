@@ -1,8 +1,8 @@
 [package]
 name = "aircard-cmaku"
-version = "1.2.2"
+version = "1.2.2-1"
 edition = "2024"
-description = "AIrCard-CMaku: Native Windows Apple Wallet & Passcode Customizer (SirMaku Mod)"
+description = "AirCard-CMaku: Native Windows Apple Wallet & Passcode Customizer (SirMaku Mod)"
 license = "MIT"
 
 [dependencies]
