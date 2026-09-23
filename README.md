@@ -1,7 +1,7 @@
 # AirCard-CMaku 🎴
 
 > **Customized Apple Wallet Card Skinner & Lockscreen Passcode Themer for iOS 18+ (No Jailbreak Required)**  
-> Native Windows Rust client modded by **SirMaku**, originally ported by **Lumid-Off**. Powered by the `airlift` AirTraffic sync exploit.  
+> Bản mod Rust native trên Windows duy trì bởi **SirMaku**, phái sinh từ dự án gốc của **Lumid-Off**. Sử dụng cơ chế đồng bộ AirTraffic (`airlift`).  
 > 🔗 **Original Upstream Repository**: [Lumid-Off/AirCard-Windows](https://github.com/Lumid-Off/AirCard-Windows)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -10,33 +10,69 @@
 
 ---
 
-## 📢 Project Notice & Disclaimer (Lưu Ý Quan Trọng)
+## 📢 Tuyên Bố Pháp Lý, Bản Quyền & Miễn Trừ Trách Nhiệm (Disclaimers & Notice)
 
-- 🎮 **For Fun Project**: Đây là dự án phi thương mại được thực hiện hoàn toàn vì mục đích học tập, giải trí và sáng tạo cá nhân. Nên dự án có thể sẽ bị bỏ dở bất cứ lúc nào. (**For fun / Non-commercial**).
-- 🤖 **AI-Assisted Mod**: Dự án phiên bản tùy biến này được thực hiện và hoàn thiện với sự trợ giúp của **AI (Google Antigravity / Gemini 3.8 Flash)** kết hợp cùng ý tưởng và định hướng của **SirMaku**.
-- 🎯 **Phạm Vi Tùy Biến (Scope of Customization)**:
-  - **SirMaku CHỈ tập trung tùy biến và mở rộng các tính năng liên quan đến Apple Pay / Apple Wallet Card Studio** (tạo hiệu ứng đa lớp, upload texture/foil, upload custom EMV chip, căn chỉnh logo và giải quyết xung đột điều khiển preview).
-  - **Tất cả các thành phần kỹ thuật cốt lõi khác** (như exploit AirTraffic sync airlift, cơ chế kết nối thiết bị qua USB usbmuxd, sao lưu/phục hồi snapshot qua Books, và tính năng cài đặt giao diện bàn phím Passcode passthm) **KHÔNG bị can thiệp nhiều và hoàn toàn mang tính kế thừa nguyên bản từ dự án gốc ([Lumid-Off/AirCard-Windows](https://github.com/Lumid-Off/AirCard-Windows)) của tác giả ([@Lumid-Off](https://github.com/Lumid-Off)) cùng các tác giả tiền nhiệm ([@mak5er](https://github.com/mak5er), [0xjohnny](https://github.com/0xjohnnydev))**.
+### 1. Mục Đích Phát Triển & Cảnh Báo Rủi Ro (Academic Purpose & Risk Warning)
+- **Mục đích sử dụng**: Dự án này được phát triển hoàn toàn cho **mục đích học tập, nghiên cứu kỹ thuật và sử dụng cá nhân**. 
+- **Trách nhiệm người dùng**: **Người dùng tự chịu toàn bộ rủi ro và trách nhiệm** khi tải về, biên dịch và chạy công cụ trên thiết bị của mình.
+- **Rủi ro kỹ thuật**: Quá trình can thiệp và ghi file có thể làm biến đổi cấu trúc dữ liệu cục bộ trên thiết bị, có khả năng phát sinh lỗi timeout giao tiếp AirTraffic, lỗi khôi phục snapshot hoặc không tương thích trên một số phiên bản iOS nhất định, dẫn đến việc phải khôi phục lại thiết bị nếu quá trình ghi gặp sự cố giữa chừng.
+- **Mức độ an toàn**: Mặc dù công cụ tích hợp cơ chế snapshot và restore qua Apple Books để giảm thiểu rủi ro, **dự án KHÔNG THỂ và KHÔNG ĐẢM BẢO an toàn tuyệt đối**. Khuyến cáo mạnh mẽ: **Người dùng nên chủ động sao lưu (backup) toàn bộ dữ liệu thiết bị qua iTunes / Finder / iCloud trước khi sử dụng.**
 
-- 📜 **Mã Nguồn Mở & Giấy Phép (Open Source & Free to Use)**:
-  - Dự án hoàn toàn miễn phí và mở mã nguồn (MIT License). Bạn được tự do tải về, tham khảo, sử dụng và chỉnh sửa code theo ý muốn.
-  - **QUY ĐỊNH BẮT BUỘC**: Mọi hành vi chia sẻ, phân phối lại hoặc phát triển tiếp nối mã nguồn này **bắt buộc phải ghi nhận đầy đủ tên tác giả gốc ([@Lumid-Off](https://github.com/Lumid-Off)) và người tùy biến/modder ([@SirMaku](https://github.com/SirMaku-git))**.
+### 2. Quan Hệ Với Apple (Apple Non-Affiliation Disclaimer)
+- **Công cụ độc lập**: Đây là một công cụ mã nguồn mở độc lập, **hoàn toàn KHÔNG được Apple Inc. tài trợ, ủy quyền, xác nhận hoặc bảo đảm**.
+- **Cơ chế AirTraffic**: AirTraffic là một cơ chế đồng bộ có sẵn trong hệ sinh thái Apple, tuy nhiên phương thức khai thác và ứng dụng trong dự án này hoàn toàn không đại diện cho quan điểm, khuyến nghị hay sự chấp thuận từ phía Apple.
+- **Thương hiệu**: Các nhãn hiệu "Apple", "Apple Pay", "Apple Wallet", "iPhone", "iOS" thuộc quyền sở hữu của Apple Inc. Dự án chỉ đề cập đến các tên gọi này nhằm mục đích mô tả chức năng tương thích kỹ thuật.
+
+### 3. Phân Định Vai Trò Tác Giả & Mối Quan Hệ Với Tác Giả Gốc (Author Roles & Upstream Notice)
+- **Bản phái sinh (Derivative Work)**: `AirCard-CMaku` là bản mod phái sinh từ `AirCard-Windows`.
+  - **Tác giả nền tảng gốc**: **[@Lumid-Off](https://github.com/Lumid-Off)** và các cộng tác viên là những người phát triển nền tảng Windows nguyên bản, xây dựng kiến trúc Rust native, cơ chế snapshot/restore và bộ kết nối `usbmuxd`.
+  - **Nghiên cứu kỹ thuật tiền đề**: **[@mak5er](https://github.com/mak5er)** (tác giả ứng dụng macOS ban đầu) và **[0xjohnny (@0xjohnnydev)](https://github.com/0xjohnnydev)** (tác giả exploit vượt sandbox AirTraffic/ATAirlock `airlift`).
+  - **Phạm vi đóng góp của SirMaku**: **[@SirMaku](https://github.com/SirMaku-git)** chỉ là maintainer của bản mod phái sinh, tập trung nghiên cứu và xây dựng bộ công cụ **Card Studio Đa Tầng** (Interactive Multi-Layer Studio, Custom Texture/Foil Upload, Custom EMV Chip engine, Brand Logo alignment, Hit-testing direct click, và giao diện Sources); **không phải tác giả gốc của toàn bộ nền tảng**.
+- **Mối quan hệ**: **SirMaku KHÔNG có bất kỳ mối quan hệ cá nhân, tổ chức hay liên kết nào với các tác giả gốc.**
+- **Chính sách gỡ bỏ thiện chí (Good-Faith Takedown Policy)**: Nếu tác giả gốc (đặc biệt là Lumid-Off) có bất kỳ yêu cầu gỡ bỏ kho lưu trữ này khỏi GitHub công khai vì bất kỳ lý do gì, người duy trì sẽ hoàn toàn vui lòng tuân thủ và gỡ bỏ ngay lập tức, chỉ lưu giữ bản mod nội bộ để học tập cá nhân và chia sẻ cho bạn bè.
+- **Lời tri ân**: Xin gửi lời cảm ơn và lòng biết ơn chân thành, sâu sắc nhất đến tác giả gốc **[@Lumid-Off](https://github.com/Lumid-Off)** cùng các nhà nghiên cứu bảo mật đã mở đường và chia sẻ mã nguồn cho cộng đồng.
+
+### 4. Giấy Phép & Ghi Nhận Bản Quyền (License & Attribution)
+- Dự án được phân phối theo giấy phép mã nguồn mở tự do **[MIT License](LICENSE)**.
+- Bản quyền mã nguồn được phân tách rõ ràng:
+  - Phần mã nguồn gốc nền tảng: Thuộc bản quyền của `Lumid-Off and contributors` ([Lumid-Off/AirCard-Windows](https://github.com/Lumid-Off/AirCard-Windows)).
+  - Phần mã nguồn chỉnh sửa và tiện ích Card Studio mở rộng: Thuộc bản quyền của `SirMaku` ([SirMaku-git/AirCard-CMaku](https://github.com/SirMaku-git/AirCard-CMaku)).
+  - SirMaku không sở hữu bản quyền toàn bộ dự án.
+- Mọi hoạt động sao chép, trích xuất hoặc phân phối lại mã nguồn này phải bảo lưu đầy đủ thông báo bản quyền (Copyright Notice) của cả tác giả gốc và người đóng góp bản mod theo đúng quy định của giấy phép MIT.
 
 ---
 
-### 🌐 English Summary & Customization Scope Notice
+### 🌐 English Summary & Legal Disclaimers
 
-- 🎯 **Customization Scope**: SirMaku **ONLY** customized and enhanced features related to **Apple Pay / Apple Wallet (Card Studio)** (interactive multi-layer studio, custom texture/foil finishes, custom EMV chip upload & positioning, layer alignment engine, and live card preview).
-- ⚙️ **Core Exploit & Inheritance**: All other core technical mechanisms — including the AirTraffic sync sandbox escape (`airlift`), USB device communication (`usbmuxd`), Books snapshot backup/restore, and Passcode theming (`passthm`) — were **NOT** heavily modified and are directly inherited from the original upstream project ([Lumid-Off/AirCard-Windows](https://github.com/Lumid-Off/AirCard-Windows)) by **[@Lumid-Off](https://github.com/Lumid-Off)** and upstream contributors (**[@mak5er](https://github.com/mak5er)**, **[0xjohnny](https://github.com/0xjohnnydev)**).
-- 🎮 **For Fun / Non-commercial**: This is a non-commercial, hobbyist project created for fun, learning, and personalization.
-- 🤖 **AI-Assisted**: Development was assisted by AI (**Google Antigravity / Gemini**).
-- 📜 **Attribution Requirement**: Free and open source under MIT License. Attribution to both the original author (**[@Lumid-Off](https://github.com/Lumid-Off)**) and customizer (**[@SirMaku](https://github.com/SirMaku-git)**) is strictly required upon any redistribution or modification.
+- 🎯 **Derivative Work & Scope**: `AirCard-CMaku` is an independent derivative work based on `AirCard-Windows`. SirMaku maintains this mod and developed the **Multi-Layer Card Studio** (custom texture/foil uploads, custom EMV chip positioning, logo alignment, and interactive canvas preview). SirMaku is **NOT** the original author of the underlying platform.
+- ⚙️ **Original Upstream Authors**: The core platform, AirTraffic sync exploit (`airlift`), USB device communication (`usbmuxd`), and Books snapshot restore mechanisms were designed and built by original creator **[@Lumid-Off](https://github.com/Lumid-Off)**, with upstream research by **[@mak5er](https://github.com/mak5er)** and **[0xjohnny (@0xjohnnydev)](https://github.com/0xjohnnydev)**.
+- 🤝 **No Affiliation & Good-Faith Takedown Notice**: SirMaku has **NO affiliation or relationship** with the original authors. If the original authors request the removal of this repository from GitHub for any reason, the maintainer will gladly comply immediately and only maintain the mod privately for personal study and friends. Deep gratitude is expressed to the original creators for their pioneering open-source work.
+- 🍎 **Apple Non-Affiliation**: This tool is an unofficial, independent project and is **NOT affiliated with, sponsored, authorized, or endorsed by Apple Inc.** AirTraffic is an existing mechanism in the Apple ecosystem, but its utilization here does not represent Apple's views or authorization.
+- ⚠️ **Academic Purpose & Risk Notice**: Created strictly for personal learning and technical research. Users assume all risks. The tool modifies device-level data, which may fail due to USB disconnects, restore errors, or iOS incompatibilities. The Books snapshot/restore mechanism reduces risk but **CANNOT guarantee absolute safety**. Always backup your device before use.
+- 📜 **MIT License & Attribution**: Open-source under MIT License. Copyright belongs respectively to Lumid-Off & contributors for original work, and SirMaku for Card Studio modifications. Standard MIT attribution applies.
+
+---
+
+## 📱 Khả Năng Tương Thích & Phạm Vi Đã Kiểm Thử (Compatibility & Testing Matrix)
+
+> [!IMPORTANT]
+> **Khả năng tương thích thay đổi theo phiên bản iOS, mẫu thiết bị và driver Apple. "iOS 18+" là phạm vi mục tiêu, không phải bảo đảm hoạt động trên mọi phiên bản.**
+
+### Bảng Ma Trận Kiểm Thử Thực Tế
+
+| Hạng mục | Phạm vi kiểm thử thực tế | Ghi chú & Giới hạn kỹ thuật |
+| :--- | :--- | :--- |
+| **Phiên bản iOS** | **iOS 18.0 - 18.2** (Apple Wallet & Card Studio); **iOS 16.0 - 17.x** (Passcode Dialer) | Apple có thể sửa đổi hoặc chặn cơ chế đồng bộ AirTraffic trong các bản vá iOS tương lai. |
+| **Thiết bị** | **iPhone 11 series đến iPhone 16 series** (Lightning & USB-C) | Đã kiểm thử thực tế và hoạt động trơn tru với cáp truyền dữ liệu chuẩn MFi. |
+| **Tính năng ổn định** | • Thay skin thẻ Apple Wallet<br>• Card Studio đa tầng (Foil, Texture, EMV Chip, Logo)<br>• Cài đặt theme bàn phím số Lock Screen (.passthm) | Hoạt động thông qua Books snapshot và local AirTraffic sync. |
+| **Lưu ý Passcode** | Cần tắt tính năng **Chữ đậm (Bold Text)** | Trong **Cài đặt ➔ Màn hình & Độ sáng ➔ Chữ đậm: TẮT**. Nếu bật chữ đậm, iOS sẽ bỏ qua theme ảnh nút. |
+| **Yêu cầu Driver** | Cần đầy đủ bộ driver **Apple Mobile Device** trên Windows | Xung đột driver Windows là lỗi phổ biến nhất (xem hướng dẫn khắc phục bên dưới). |
 
 ---
 
 ## ✨ Điểm Mới Trong Phiên Bản AirCard-CMaku (SirMaku Mod)
 
-Phiên bản **AirCard-CMaku** bổ sung bộ công cụ **Card Studio Đa Tầng (Multi-Layer Card Studio)** cực kỳ mạnh mẽ:
+Phiên bản **AirCard-CMaku** bổ sung bộ công cụ **Card Studio Đa Tầng (Multi-Layer Card Studio)**:
 
 1. ✨ **Tùy Chọn Finish Đa Dạng & Custom Texture / Foil Upload**:
    - Bổ sung tùy chọn `Custom Texture / Foil (Upload)` trong danh sách `Finish:`.
@@ -49,12 +85,17 @@ Phiên bản **AirCard-CMaku** bổ sung bộ công cụ **Card Studio Đa Tần
 3. 🏷️ **Điều Chỉnh Vị Trí & Tỷ Lệ Brand Logo**:
    - Cho phép phóng to thu nhỏ (**Logo Scale**) và di chuyển tọa độ **X**, **Y** cho tất cả các logo mạng lưới thanh toán (Visa, Mastercard, Napas, JCB hoặc Custom Logo).
 4. 🎯 **Hệ Thống Giải Quyết Xung Đột Điều Khiển Đa Lớp (Multi-Layer Control Engine)**:
-   - Thanh chọn lớp trực quan đặt ngay trên thẻ: `[🖼️ Background] [✨ Finish] [💳 Chip] [🏷️ Logo]`.
-   - **Direct-Click Hit Testing**: Click chuột trực tiếp vào Chip hoặc Logo trên thẻ preview sẽ tự động kích hoạt lớp điều khiển tương ứng.
+   - Thanh chọn lớp trực quan đặt ngay trên thẻ: `[🖼️ Background] [✨ Finish] [💳 Chip] [📶 Wave] [🏷️ Logo] [🔢 Details] [🧩 Custom Widgets] [+]`.
+   - **Direct-Click Hit Testing**: Click chuột trực tiếp vào Chip, Wave, Logo, hoặc bất kỳ Widget tự tải lên trên thẻ preview sẽ tự động kích hoạt lớp điều khiển tương ứng.
    - **Figma-Style Bounding Box**: Khung viền màu tím sáng hiển thị bao quanh đúng phần tử đang được chọn để người dùng căn chỉnh dễ dàng.
    - Thao tác kéo chuột (Drag) và cuộn chuột (Scroll zoom) chỉ tác động trực tiếp vào lớp đang được chọn, không làm trôi ảnh nền.
-5. 🌐 **Tab Sources Vinh Danh & Bản Quyền**:
-   - Tab **Sources** tích hợp sẵn trên giao diện ứng dụng để người dùng dễ dàng xem thông tin tác giả gốc, người mod, các nhà nghiên cứu bảo mật và liên kết dự án.
+   - **Sửa lỗi Xoay bằng Phím Shift (Shift + Mouse Wheel Fix)**: Nhận diện chính xác sự kiện cuộn chuột ngang/dọc trên Windows khi giữ phím `Shift`, cho phép xoay mượt mà 360° mọi đối tượng được chọn.
+5. 🧩 **Nút `+` Thêm Widget Tùy Ý (Custom Widgets Upload)**:
+   - Nút `+` (Add Widget) trong danh sách lớp hoặc khung bên hông cho phép tải lên bất kỳ hình ảnh nào (sticker, logo phụ, chip vẽ tay, QR cá nhân, huy hiệu, graphic độc quyền...) mà không bị tù túng bởi các preset có sẵn.
+   - **Tùy biến đầy đủ tương đương 100%**: Hỗ trợ kéo thả vị trí (X/Y), phóng to thu nhỏ (Scale), xoay tự do (Rotation), độ trong suốt (Opacity), nhuộm màu RGB (Tint), độ bão hòa (Saturation), dịch tông màu (Hue Shift) và bật/tắt bóng đổ (Drop Shadow).
+   - Cho phép thêm đồng thời nhiều widget, quản lý ẩn/hiện hoặc xóa từng widget nhanh chóng.
+6. 🌐 **Tab Sources Vinh Danh & Bản Quyền**:
+   - Tab **Sources** tích hợp sẵn trên giao diện ứng dụng để người dùng dễ dàng xem thông tin tác giả gốc, người mod, các nhà nghiên cứu bảo mật, chính sách gỡ bỏ và liên kết dự án.
 
 ---
 
@@ -65,29 +106,27 @@ Phiên bản **AirCard-CMaku** bổ sung bộ công cụ **Card Studio Đa Tần
 - ⚡ **100% Native & Siêu Nhẹ**: File thực thi duy nhất `AirCard-cmaku.exe` dung lượng ~7.5 MB, khởi động tức thì, không cần Python hay runtime cồng kềnh.
 - 🪟 **Giao diện Material Design 3 Dark**: Tối ưu thẩm mỹ hiện đại với `egui` / `eframe`.
 - 📱 **Bắt Pass Hash Thẻ Tự Động**: Bắt mã hash thẻ thời gian thực qua `syslog_relay` khi chạm thẻ trong Apple Wallet trên iPhone.
-- 🔄 **An Toàn Tuyệt Đối**: Sao lưu và khôi phục trạng thái nguyên vẹn qua cơ chế snapshot của Apple Books.
-- 🔓 **Không Cần Jailbreak**: Khai thác giao thức đồng bộ AirTraffic hợp lệ của Apple mà không can thiệp phân vùng hệ thống.
+- 🔄 **Cơ Chế Snapshot & Khôi Phục (Snapshot & Restore)**: Tích hợp sao lưu và khôi phục trạng thái nguyên vẹn qua cơ chế snapshot của Apple Books nhằm giảm thiểu rủi ro (lưu ý: không đảm bảo an toàn tuyệt đối, người dùng nên chủ động backup thiết bị).
+- 🔓 **Không Cần Jailbreak**: Khai thác cơ chế đồng bộ AirTraffic có sẵn trên thiết bị mà không cần jailbreak hay can thiệp phân vùng hệ thống (công cụ phi chính thức, độc lập với Apple).
 
 ---
 
-## 💻 Yêu Cầu Hệ Thống (Requirements)
+## 💻 Yêu Cầu Hệ Thống & Cài Đặt Driver (Requirements & Setup)
 
-- **Windows 10 / 11 (64-bit)**
-- **Apple Mobile Device Support / iTunes 64-bit** (cần thiết để nạp driver giao tiếp USB của Apple).
-- Cáp kết nối Lightning hoặc USB-C chính hãng / chuẩn MFi.
+- **Hệ điều hành**: Windows 10 / 11 (64-bit).
+- **Cáp kết nối**: Cáp Lightning hoặc USB-C hỗ trợ truyền dữ liệu (chuẩn MFi hoặc cáp zin theo máy).
+- **Bộ Driver Apple**: Cần cài đặt đầy đủ driver giao tiếp USB **Apple Mobile Device Support**.
 
----
-
-## ⚠️ Khắc Phục Lỗi Driver (Troubleshooting)
+### ⚠️ Hướng Dẫn Cài Driver Chuẩn Đã Kiểm Thử (Tested with 3uTools)
 
 > [!TIP]
-> **Nếu ứng dụng không nhận iPhone hoặc quá trình sync bị treo:**  
-> Xung đột driver Apple trên Windows là nguyên nhân phổ biến nhất. Hãy làm theo các bước sau:
-> 1. Tải và cài đặt **[3uTools](https://www.3u.com/)**.
-> 2. **Rút cáp iPhone** khỏi máy tính.
-> 3. Trong 3uTools, chọn **Toolbox ➔ Repair Driver**.
-> 4. Nhấn **Repair Now** và chờ công cụ hoàn tất cài đặt lại Apple Mobile Device driver.
-> 5. Cắm lại iPhone, mở khóa màn hình, bấm **Trust this Computer (Tin cậy máy tính này)** và mở lại **AirCard-CMaku**.
+> **Kinh nghiệm thực tế kiểm thử thành công:**  
+> Để ứng dụng hoạt động trơn tru và nhận diện thiết bị ổn định nhất trên Windows, quy trình cài driver qua **3uTools** đã được kiểm chứng hoạt động tốt nhất:
+> 1. Tải và cài đặt phần mềm **[3uTools](https://www.3u.com/)**.
+> 2. Mở 3uTools, chuyển sang mục **Toolbox** (Hộp công cụ).
+> 3. Trong Toolbox, chọn cài đặt **iTunes** (hoặc chọn mục **Repair Driver**).
+> 4. Nhấn **Repair Now** để 3uTools tự động tải và cài đặt đồng bộ toàn bộ driver Apple Mobile Device còn thiếu trên máy tính Windows.
+> 5. Cắm iPhone vào máy tính, mở khóa màn hình, nhấn **Trust this Computer (Tin cậy máy tính này)**, sau đó khởi chạy **AirCard-CMaku**.
 
 ---
 
@@ -115,10 +154,6 @@ Phiên bản **AirCard-CMaku** bổ sung bộ công cụ **Card Studio Đa Tần
 4. Nhấn **Apply Passcode Theme**.
 5. Khóa màn hình iPhone để kiểm tra giao diện phím số mới!
 
-> [!IMPORTANT]
-> **Tắt Chữ Đậm (Turn OFF Bold Text):**  
-> Trên iPhone, vào **Cài đặt ➔ Màn hình & Độ sáng** và đảm bảo tùy chọn **Chữ đậm (Bold Text)** đang ở trạng thái **TẮT**. Nếu bật chữ đậm, iOS sẽ bỏ qua ảnh nút tùy biến và hiển thị font vector mặc định của hệ thống.
-
 ---
 
 ## 🛠️ Biên Dịch Từ Mã Nguồn (Building from Source)
@@ -126,7 +161,7 @@ Phiên bản **AirCard-CMaku** bổ sung bộ công cụ **Card Studio Đa Tần
 Yêu cầu: Đã cài đặt [Rust](https://rustup.rs/) toolchain (`stable-x86_64-pc-windows-msvc`).
 
 ```powershell
-# Chạy bộ kiểm thử (16 unit & integration tests)
+# Chạy bộ kiểm thử tự động (17 tests)
 cargo test
 
 # Biên dịch bản release tối ưu hóa
@@ -143,16 +178,20 @@ File thực thi sau khi biên dịch nằm tại: `target\release\AirCard-cmaku.
 - **[@Lumid-Off](https://github.com/Lumid-Off)** (Windows Native Rust Port & Maintainer) — [Official Repository: Lumid-Off/AirCard-Windows](https://github.com/Lumid-Off/AirCard-Windows) · [GitHub Profile](https://github.com/Lumid-Off) · [Twitter / X](https://x.com/LumidOff)
 - **[@mak5er](https://github.com/mak5er)** (Original macOS App & Exploit Research) — [GitHub](https://github.com/mak5er) · [Twitter / X](https://x.com/mak5er)
 - **[AirLift](https://github.com/0xjohnnydev/airlift)** by **[0xjohnny (@0xjohnnydev)](https://github.com/0xjohnnydev)**: Original AirTraffic/ATAirlock sandbox escape & proof of concept underlying `AirliftFFI`.
-- **[@SirMaku](https://github.com/SirMaku-git)** (Customizer): Thiết kế và phát triển Card Studio Đa Tầng, Custom Texture & Foil upload, Custom EMV Chip engine, layer alignment, và UI Sources.
+- **[@SirMaku](https://github.com/SirMaku-git)** (Maintainer & Customizer): Thiết kế và phát triển Card Studio Đa Tầng, Custom Texture & Foil upload, Custom EMV Chip engine, layer alignment, và UI Sources.
 
-### Credits
+### Credits & Acknowledgments
 - Khai thác cốt lõi dựa trên `airlift` (AirTraffic sync escape).
 - Định dạng theme dialer lấy cảm hứng từ [Cowabunga](https://github.com/leminlimez/Cowabunga) và [Nugget](https://github.com/leminlimez/Nugget).
 - Dự án mod được hỗ trợ thực hiện bởi **AI (Google Antigravity / Gemini 3.8 Flash)**.
+- **Lời tri ân**: Xin gửi lời cảm ơn trân trọng nhất đến tác giả **Lumid-Off** và toàn thể các nhà nghiên cứu đã đóng góp cho hệ sinh thái mở.
 
 ---
 
 ## 📄 License
 
-Dự án phát hành theo giấy phép [MIT License](LICENSE).
-Mọi hành vi tái phân phối hoặc phát triển tiếp nối bắt buộc phải giữ lại ghi danh tác giả gốc ([@Lumid-Off](https://github.com/Lumid-Off)) và người tùy biến ([@SirMaku](https://github.com/SirMaku-git)).
+Dự án được phân phối theo giấy phép [MIT License](LICENSE):
+- Original work Copyright (c) 2026 Lumid-Off and contributors ([Lumid-Off/AirCard-Windows](https://github.com/Lumid-Off/AirCard-Windows))
+- Modified work Copyright (c) 2026 SirMaku ([SirMaku-git/AirCard-CMaku](https://github.com/SirMaku-git/AirCard-CMaku))
+
+Mọi hành vi tái phân phối hoặc phát triển tiếp nối phải tuân thủ điều khoản giấy phép MIT và bảo lưu đầy đủ thông báo bản quyền của tác giả gốc và người đóng góp bản mod.

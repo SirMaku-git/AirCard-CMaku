@@ -5,6 +5,7 @@ mod airlift;
 mod airtraffic;
 mod app;
 mod apple;
+pub mod card_studio;
 mod device;
 mod flasher;
 mod image_skin;
