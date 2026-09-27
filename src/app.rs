@@ -282,14 +282,22 @@ impl AirCardApp {
 
     fn select_skin(&mut self, ctx: &egui::Context) {
         let Some(path) = rfd::FileDialog::new()
-            .add_filter("Images", &["png", "jpg", "jpeg", "webp"])
+            .add_filter("Supported Images (*.png, *.jpg, *.svg, *.webp, *.bmp)", &["png", "jpg", "jpeg", "webp", "svg", "bmp", "gif", "ico", "tiff"])
             .pick_file()
         else {
             return;
         };
 
         self.add_log(format!("Opening skin image: {}", path.display()));
-        match image::open(&path) {
+        let source_res = match std::fs::read(&path) {
+            Ok(bytes) => match crate::card_studio::workspace::load_image_any_format(&bytes, path.to_str()) {
+                Ok(rgba) => Ok(DynamicImage::ImageRgba8(rgba)),
+                Err(e) => Err(format!("Could not parse image {}: {e:#}", path.display())),
+            },
+            Err(e) => Err(format!("Could not read file {}: {e:#}", path.display())),
+        };
+
+        match source_res {
             Ok(source_image) => {
                 let source_width = source_image.width();
                 let source_height = source_image.height();
@@ -421,6 +429,42 @@ impl AirCardApp {
                 self.add_log(format!("Failed to save PNG: {err}"));
                 self.status_msg = format!("Could not save PNG: {err}");
             }
+        }
+    }
+
+    fn save_workspace(&mut self) {
+        match self.card_studio.save_workspace_dialog(self.source_image.as_ref()) {
+            Ok(msg) => {
+                self.add_log(format!("Workspace saved: {msg}"));
+                self.status_msg = msg;
+            }
+            Err(e) if e != "Cancelled by user" => {
+                self.add_log(format!("Workspace save error: {e}"));
+                self.status_msg = e;
+            }
+            _ => {}
+        }
+    }
+
+    fn load_workspace(&mut self, ctx: &egui::Context) {
+        match self.card_studio.load_workspace_dialog() {
+            Ok((msg, loaded_img)) => {
+                if let Some(dyn_img) = loaded_img {
+                    let rgba = dyn_img.to_rgba8();
+                    let (w, h) = (rgba.width() as usize, rgba.height() as usize);
+                    let color_img = egui::ColorImage::from_rgba_unmultiplied([w, h], rgba.as_raw());
+                    self.source_texture = Some(ctx.load_texture("source_image", color_img, egui::TextureOptions::LINEAR));
+                    self.source_image = Some(dyn_img);
+                }
+                self.recompute_studio_skin(ctx);
+                self.add_log(format!("Workspace loaded: {msg}"));
+                self.status_msg = msg;
+            }
+            Err(e) if e != "Cancelled by user" => {
+                self.add_log(format!("Workspace load error: {e}"));
+                self.status_msg = e;
+            }
+            _ => {}
         }
     }
 
@@ -1472,17 +1516,32 @@ impl AirCardApp {
                 ui.label(egui::RichText::new(language.text("PNG, JPG, WebP - auto-scaled to 1536x969")).size(11.0).color(md3::ON_SURFACE_VARIANT));
                 ui.label(egui::RichText::new(language.text("Drag inside the preview to reposition the crop.")).size(11.0).color(md3::ON_SURFACE_VARIANT));
                 ui.add_space(4.0);
+                let is_vi = self.language == Language::Vietnamese;
                 ui.horizontal(|ui| {
                     if m3_button_filled(ui, language.text("Choose Image...")) { self.select_skin(ctx); }
                     if self.skin.is_some() || self.studio_rgba.is_some() {
                         if m3_button_tonal(ui, language.text("Export PNG")) { self.save_prepared_png(); }
                     }
+                    if m3_button_tonal(ui, if is_vi { "💾 Lưu .wcm" } else { "💾 Save .wcm" }) {
+                        self.save_workspace();
+                    }
+                    if m3_button_tonal(ui, if is_vi { "📂 Mở .wcm" } else { "📂 Open .wcm" }) {
+                        self.load_workspace(ctx);
+                    }
                 });
 
                 ui.add_space(8.0);
-                let is_vi = self.language == Language::Vietnamese;
                 if self.card_studio.draw_sidebar(ui, is_vi) {
                     self.recompute_studio_skin(ctx);
+                }
+
+                if self.card_studio.save_workspace_requested {
+                    self.card_studio.save_workspace_requested = false;
+                    self.save_workspace();
+                }
+                if self.card_studio.load_workspace_requested {
+                    self.card_studio.load_workspace_requested = false;
+                    self.load_workspace(ctx);
                 }
 
                 if let Some(skin) = &self.skin {

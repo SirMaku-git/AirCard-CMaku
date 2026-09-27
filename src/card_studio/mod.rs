@@ -3,6 +3,7 @@ pub mod widget;
 pub mod render;
 pub mod ui;
 pub mod sources;
+pub mod workspace;
 
 pub use types::*;
 pub use widget::*;
@@ -26,6 +27,8 @@ pub struct CardStudioState {
     pub custom_font_name: Option<String>,
     pub custom_widgets: Vec<CustomWidget>,
     pub selected_text_index: usize,
+    pub save_workspace_requested: bool,
+    pub load_workspace_requested: bool,
 }
 
 impl Default for CardStudioState {
@@ -50,6 +53,8 @@ impl CardStudioState {
             custom_font_name: None,
             custom_widgets: Vec::new(),
             selected_text_index: 0,
+            save_workspace_requested: false,
+            load_workspace_requested: false,
         }
     }
 
@@ -84,6 +89,7 @@ impl CardStudioState {
             font: CardFontPreset::ModernSans,
             letter_spacing: 1.5,
             is_uppercase: false,
+            has_backdrop: false,
             visible: true,
         };
         self.overlay_options.details.items.push(item);
@@ -107,8 +113,8 @@ impl CardStudioState {
 
     pub fn add_custom_widget(&mut self) -> Result<String, String> {
         let Some(path) = rfd::FileDialog::new()
-            .set_title("Select Custom Widget Image (PNG/JPG/WebP)")
-            .add_filter("Image files", &["png", "jpg", "jpeg", "webp"])
+            .set_title("Select Custom Widget Image (PNG/JPG/SVG/WebP)")
+            .add_filter("Supported Images (*.png, *.jpg, *.svg, *.webp, *.bmp)", &["png", "jpg", "jpeg", "webp", "svg", "bmp", "gif", "ico", "tiff"])
             .pick_file()
         else {
             return Err("Cancelled by user".into());
@@ -147,67 +153,109 @@ impl CardStudioState {
 
     pub fn select_custom_logo(&mut self) -> Result<String, String> {
         let Some(path) = rfd::FileDialog::new()
-            .set_title("Select Custom Logo Image (PNG/JPG)")
-            .add_filter("Image files", &["png", "jpg", "jpeg", "webp"])
+            .set_title("Select Custom Logo Image (PNG/JPG/SVG/WebP)")
+            .add_filter("Supported Images (*.png, *.jpg, *.svg, *.webp, *.bmp)", &["png", "jpg", "jpeg", "webp", "svg", "bmp", "gif", "ico", "tiff"])
             .pick_file()
         else {
             return Err("Cancelled by user".into());
         };
 
-        match image::open(&path) {
-            Ok(img) => {
-                let rgba = img.to_rgba8();
-                self.custom_logo_image = Some(rgba);
-                self.custom_logo_path = Some(path.clone());
-                self.overlay_options.network = PaymentNetwork::Custom;
-                self.active_layer = ActiveTransformLayer::Logo;
-                Ok(format!("Custom logo loaded: {}", path.display()))
-            }
-            Err(e) => Err(format!("Failed to open custom logo {}: {e:#}", path.display())),
+        match std::fs::read(&path) {
+            Ok(bytes) => match crate::card_studio::workspace::load_image_any_format(&bytes, path.to_str()) {
+                Ok(rgba) => {
+                    self.custom_logo_image = Some(rgba);
+                    self.custom_logo_path = Some(path.clone());
+                    self.overlay_options.network = PaymentNetwork::Custom;
+                    self.active_layer = ActiveTransformLayer::Logo;
+                    Ok(format!("Custom logo loaded: {}", path.display()))
+                }
+                Err(e) => Err(format!("Failed to parse logo {}: {e:#}", path.display())),
+            },
+            Err(e) => Err(format!("Failed to read file {}: {e:#}", path.display())),
         }
     }
 
     pub fn select_custom_chip(&mut self) -> Result<String, String> {
         let Some(path) = rfd::FileDialog::new()
-            .set_title("Select Custom EMV Chip Image (PNG with transparency)")
-            .add_filter("Image files", &["png", "webp"])
+            .set_title("Select Custom EMV Chip Image (PNG/SVG with transparency)")
+            .add_filter("Supported Images (*.png, *.svg, *.webp)", &["png", "webp", "svg", "ico"])
             .pick_file()
         else {
             return Err("Cancelled by user".into());
         };
 
-        match image::open(&path) {
-            Ok(img) => {
-                let rgba = img.to_rgba8();
-                self.custom_chip_image = Some(rgba);
-                self.custom_chip_path = Some(path.clone());
-                self.overlay_options.show_chip = true;
-                self.active_layer = ActiveTransformLayer::Chip;
-                Ok(format!("Custom chip loaded: {}", path.display()))
-            }
-            Err(e) => Err(format!("Failed to open custom chip {}: {e:#}", path.display())),
+        match std::fs::read(&path) {
+            Ok(bytes) => match crate::card_studio::workspace::load_image_any_format(&bytes, path.to_str()) {
+                Ok(rgba) => {
+                    self.custom_chip_image = Some(rgba);
+                    self.custom_chip_path = Some(path.clone());
+                    self.overlay_options.show_chip = true;
+                    self.active_layer = ActiveTransformLayer::Chip;
+                    Ok(format!("Custom chip loaded: {}", path.display()))
+                }
+                Err(e) => Err(format!("Failed to parse custom chip {}: {e:#}", path.display())),
+            },
+            Err(e) => Err(format!("Failed to read file {}: {e:#}", path.display())),
         }
     }
 
     pub fn select_custom_finish(&mut self) -> Result<String, String> {
         let Some(path) = rfd::FileDialog::new()
-            .set_title("Select Custom Texture / Foil Image (PNG/JPG/WebP)")
-            .add_filter("Image files", &["png", "jpg", "jpeg", "webp"])
+            .set_title("Select Custom Texture / Foil Image (PNG/JPG/SVG/WebP)")
+            .add_filter("Supported Images (*.png, *.jpg, *.svg, *.webp, *.bmp)", &["png", "jpg", "jpeg", "webp", "svg", "bmp", "gif", "ico", "tiff"])
             .pick_file()
         else {
             return Err("Cancelled by user".into());
         };
 
-        match image::open(&path) {
-            Ok(img) => {
-                let rgba = img.to_rgba8();
-                self.custom_finish_image = Some(rgba);
-                self.custom_finish_path = Some(path.clone());
-                self.overlay_options.finish = CardFinish::CustomTexture;
-                self.active_layer = ActiveTransformLayer::Finish;
-                Ok(format!("Custom finish texture loaded: {}", path.display()))
-            }
-            Err(e) => Err(format!("Failed to open finish texture {}: {e:#}", path.display())),
+        match std::fs::read(&path) {
+            Ok(bytes) => match crate::card_studio::workspace::load_image_any_format(&bytes, path.to_str()) {
+                Ok(rgba) => {
+                    self.custom_finish_image = Some(rgba);
+                    self.custom_finish_path = Some(path.clone());
+                    self.overlay_options.finish = CardFinish::CustomTexture;
+                    self.active_layer = ActiveTransformLayer::Finish;
+                    Ok(format!("Custom finish texture loaded: {}", path.display()))
+                }
+                Err(e) => Err(format!("Failed to parse finish texture {}: {e:#}", path.display())),
+            },
+            Err(e) => Err(format!("Failed to read file {}: {e:#}", path.display())),
+        }
+    }
+
+    pub fn save_workspace_dialog(&self, source_image: Option<&DynamicImage>) -> Result<String, String> {
+        let Some(path) = rfd::FileDialog::new()
+            .set_title("Save AirCard CMaku Workspace (.wcm)")
+            .add_filter("AirCard Workspace (*.wcm)", &["wcm", "WCM"])
+            .set_file_name("card_workspace.wcm")
+            .save_file()
+        else {
+            return Err("Cancelled by user".into());
+        };
+
+        let mut path = path;
+        if path.extension().is_none() || path.extension().unwrap_or_default() != "wcm" {
+            path.set_extension("wcm");
+        }
+
+        match crate::card_studio::workspace::save_workspace_wcm(self, source_image, &path) {
+            Ok(()) => Ok(format!("Đã lưu file workspace (.wcm) thành công: {}", path.display())),
+            Err(e) => Err(format!("Lỗi khi lưu workspace: {e:#}")),
+        }
+    }
+
+    pub fn load_workspace_dialog(&mut self) -> Result<(String, Option<DynamicImage>), String> {
+        let Some(path) = rfd::FileDialog::new()
+            .set_title("Open AirCard CMaku Workspace (.wcm)")
+            .add_filter("AirCard Workspace (*.wcm)", &["wcm", "WCM"])
+            .pick_file()
+        else {
+            return Err("Cancelled by user".into());
+        };
+
+        match crate::card_studio::workspace::load_workspace_wcm(self, &path) {
+            Ok(source_img) => Ok((format!("Đã mở workspace thành công: {}", path.display()), source_img)),
+            Err(e) => Err(format!("Lỗi khi nạp workspace: {e:#}")),
         }
     }
 
@@ -241,9 +289,20 @@ impl CardStudioState {
                 self.overlay_options.details.text_font = CardFontPreset::Custom;
                 self.active_layer = ActiveTransformLayer::Details;
 
-                Ok(format!("Custom font loaded: {file_name}"))
+                // Auto-apply custom font to all text items so the user immediately sees it
+                for item in &mut self.overlay_options.details.items {
+                    item.font = CardFontPreset::Custom;
+                }
+
+                Ok(format!("Đã tải font: {file_name}"))
             }
             Err(e) => Err(format!("Failed to read font file {}: {e:#}", path.display())),
+        }
+    }
+
+    pub fn apply_custom_font_to_all_items(&mut self) {
+        for item in &mut self.overlay_options.details.items {
+            item.font = CardFontPreset::Custom;
         }
     }
 
@@ -258,6 +317,11 @@ impl CardStudioState {
         }
         if self.overlay_options.details.text_font == CardFontPreset::Custom {
             self.overlay_options.details.text_font = CardFontPreset::ModernSans;
+        }
+        for item in &mut self.overlay_options.details.items {
+            if item.font == CardFontPreset::Custom {
+                item.font = CardFontPreset::ModernSans;
+            }
         }
     }
 

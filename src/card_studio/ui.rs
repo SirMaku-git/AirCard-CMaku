@@ -13,10 +13,81 @@ fn m3_button_tonal(ui: &mut egui::Ui, label: &str) -> bool {
     ui.add(btn).clicked()
 }
 
+fn studio_accordion_card<R>(
+    ui: &mut egui::Ui,
+    id_source: &str,
+    title: &str,
+    default_open: bool,
+    badge: Option<&str>,
+    body: impl FnOnce(&mut egui::Ui) -> R,
+) -> Option<R> {
+    let id = ui.make_persistent_id(id_source);
+    let mut is_open = ui.data_mut(|d| d.get_temp::<bool>(id).unwrap_or(default_open));
+
+    let frame = egui::Frame::NONE
+        .fill(if is_open { md3::SURFACE_CONTAINER } else { md3::SURFACE })
+        .corner_radius(8.0)
+        .inner_margin(egui::Margin::symmetric(10, 8))
+        .stroke(egui::Stroke::new(
+            1.0_f32,
+            if is_open { md3::OUTLINE_VARIANT } else { egui::Color32::from_white_alpha(18) },
+        ));
+
+    let mut result = None;
+
+    frame.show(ui, |ui| {
+        let arrow_char = if is_open { "▼" } else { "▶" };
+        let mut toggle = false;
+
+        ui.horizontal(|ui| {
+            let btn = egui::Button::new(
+                egui::RichText::new(arrow_char).size(11.0).color(md3::PRIMARY).strong(),
+            )
+            .fill(egui::Color32::TRANSPARENT)
+            .corner_radius(4.0);
+
+            if ui.add(btn).clicked() {
+                toggle = true;
+            }
+
+            let resp = ui.add(
+                egui::Label::new(
+                    egui::RichText::new(title).strong().size(12.0).color(md3::ON_SURFACE),
+                )
+                .sense(egui::Sense::click()),
+            );
+            if resp.clicked() {
+                toggle = true;
+            }
+
+            if let Some(b) = badge {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(egui::RichText::new(b).size(10.5).color(md3::ON_SURFACE_VARIANT));
+                });
+            }
+        });
+
+        if toggle {
+            is_open = !is_open;
+            ui.data_mut(|d| d.insert_temp(id, is_open));
+        }
+
+        if is_open {
+            ui.add_space(5.0);
+            ui.separator();
+            ui.add_space(5.0);
+            result = Some(body(ui));
+        }
+    });
+
+    ui.add_space(4.0);
+    result
+}
+
 pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi: bool) -> bool {
     let mut overlay_changed = false;
 
-    // Card Overlays & Studio Customization Header
+    // Top Header: Title and Reset button
     ui.horizontal(|ui| {
         let studio_lbl = if is_vi { "Card Studio & Tùy biến" } else { "Card Studio & Customization" };
         ui.label(egui::RichText::new(studio_lbl).strong().size(12.0).color(md3::ON_SURFACE));
@@ -34,391 +105,431 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
     });
     ui.add_space(4.0);
 
-    // Row 1: Background Preset & Finish
-    ui.horizontal(|ui| {
-        let bg_lbl = if is_vi { "Nền:" } else { "Background:" };
-        ui.label(egui::RichText::new(bg_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
-        let cur_bg = state.overlay_options.bg_preset;
-        egui::ComboBox::from_id_salt("bg_preset_select")
-            .width(160.0)
-            .selected_text(egui::RichText::new(cur_bg.display_name_lang(is_vi)).size(11.0).color(md3::ON_SURFACE))
-            .show_ui(ui, |ui| {
-                for preset in [
-                    CardBackgroundPreset::CustomImage,
-                    CardBackgroundPreset::MatteBlack,
-                    CardBackgroundPreset::OceanNavy,
-                    CardBackgroundPreset::BrushedGold,
-                    CardBackgroundPreset::EmeraldLuxury,
-                    CardBackgroundPreset::TitaniumMinimal,
-                    CardBackgroundPreset::CrimsonVelvet,
-                    CardBackgroundPreset::DeepCyberViolet,
-                ] {
-                    let is_sel = cur_bg == preset;
-                    if ui.selectable_label(is_sel, preset.display_name_lang(is_vi)).clicked() {
-                        if state.overlay_options.bg_preset != preset {
-                            state.overlay_options.bg_preset = preset;
-                            overlay_changed = true;
-                        }
-                    }
-                }
-            });
-
-        let finish_lbl = if is_vi { "Chất liệu hoàn thiện:" } else { "Finish:" };
-        ui.label(egui::RichText::new(finish_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
-        let cur_finish = state.overlay_options.finish;
-        egui::ComboBox::from_id_salt("finish_select")
-            .width(135.0)
-            .selected_text(egui::RichText::new(cur_finish.display_name_lang(is_vi)).size(11.0).color(md3::ON_SURFACE))
-            .show_ui(ui, |ui| {
-                for finish in [
-                    CardFinish::Standard,
-                    CardFinish::MetallicSheen,
-                    CardFinish::CarbonWeave,
-                    CardFinish::CustomTexture,
-                ] {
-                    let is_sel = cur_finish == finish;
-                    if ui.selectable_label(is_sel, finish.display_name_lang(is_vi)).clicked() {
-                        if state.overlay_options.finish != finish {
-                            state.overlay_options.finish = finish;
-                            if finish == CardFinish::CustomTexture {
-                                state.active_layer = ActiveTransformLayer::Finish;
-                            }
-                            overlay_changed = true;
-                        }
-                    }
-                }
-            });
-    });
-
-    // Row 1b: Custom Texture / Foil Controls
-    if state.overlay_options.finish == CardFinish::CustomTexture || state.custom_finish_image.is_some() {
-        ui.add_space(3.0);
-        ui.horizontal(|ui| {
-            let tex_title = if let Some(path) = &state.custom_finish_path {
-                format!("Texture: {}", path.file_name().and_then(|n| n.to_str()).unwrap_or("texture.png"))
+    // SECTION 1: Workspace AirCard (.wcm)
+    studio_accordion_card(
+        ui,
+        "studio_sec_workspace",
+        if is_vi { "💾 Quản Lý Workspace (.wcm)" } else { "💾 Workspace Manager (.wcm)" },
+        false,
+        Some(if is_vi { "Lưu / Mở" } else { "Save / Open" }),
+        |ui| {
+            let hint = if is_vi {
+                "Lưu toàn bộ bố cục thẻ, ảnh nền, logo, chip, texture, font chữ và các widget vào 1 file .wcm để tải lại bất cứ lúc nào."
             } else {
-                if is_vi { "Tải lên Texture / Foil...".to_string() } else { "Upload Texture / Foil...".to_string() }
+                "Save complete card layout, artwork, logo, chip, finish, font, and widgets to a .wcm file to reload anytime."
             };
-            if m3_button_tonal(ui, &tex_title) {
-                if state.select_custom_finish().is_ok() {
-                    overlay_changed = true;
+            ui.label(egui::RichText::new(hint).size(10.5).color(md3::ON_SURFACE_VARIANT));
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                let save_txt = if is_vi { "💾 Lưu Workspace (.wcm)..." } else { "💾 Save Workspace (.wcm)..." };
+                if m3_button_tonal(ui, save_txt) {
+                    state.save_workspace_requested = true;
                 }
-            }
-            if state.custom_finish_image.is_some() {
-                let clear_txt = if is_vi { "Xóa" } else { "Clear" };
-                if ui.button(egui::RichText::new(clear_txt).size(11.0).color(md3::ERROR)).clicked() {
-                    state.custom_finish_image = None;
-                    state.custom_finish_path = None;
-                    state.overlay_options.finish = CardFinish::Standard;
-                    overlay_changed = true;
+                let load_txt = if is_vi { "📂 Mở Workspace (.wcm)..." } else { "📂 Open Workspace (.wcm)..." };
+                if m3_button_tonal(ui, load_txt) {
+                    state.load_workspace_requested = true;
                 }
-            }
-        });
+            });
+        },
+    );
 
-        ui.horizontal(|ui| {
-            let op_lbl = if is_vi { "Độ mờ:" } else { "Opacity:" };
-            ui.label(egui::RichText::new(op_lbl).size(10.5).color(md3::ON_SURFACE_VARIANT));
-            let mut op_pct = (state.overlay_options.finish_opacity * 100.0).round() as i32;
-            if ui.add(egui::Slider::new(&mut op_pct, 5..=100).suffix("%")).changed() {
-                state.overlay_options.finish_opacity = (op_pct as f32 / 100.0).clamp(0.05, 1.0);
-                overlay_changed = true;
-            }
-
-            let sc_lbl = if is_vi { "Tỉ lệ:" } else { "Scale:" };
-            ui.label(egui::RichText::new(sc_lbl).size(10.5).color(md3::ON_SURFACE_VARIANT));
-            let mut sc_pct = (state.overlay_options.finish_scale * 100.0).round() as i32;
-            if ui.add(egui::Slider::new(&mut sc_pct, 20..=500).suffix("%")).changed() {
-                state.overlay_options.finish_scale = (sc_pct as f32 / 100.0).clamp(0.1, 10.0);
-                overlay_changed = true;
-            }
-
-            let reset_tex_lbl = if is_vi { "↺ Đặt lại" } else { "↺ Reset" };
-            let reset_tex_hover = if is_vi { "Đặt lại vị trí, tỉ lệ và độ mờ của texture" } else { "Reset texture pan, scale, and opacity" };
-            if ui.button(egui::RichText::new(reset_tex_lbl).size(10.5).color(md3::PRIMARY))
-                .on_hover_text(reset_tex_hover)
-                .clicked()
-            {
-                state.overlay_options.finish_x = 0.0;
-                state.overlay_options.finish_y = 0.0;
-                state.overlay_options.finish_scale = 1.0;
-                state.overlay_options.finish_opacity = 0.60;
-                overlay_changed = true;
-            }
-        });
-    }
-
-    ui.add_space(4.0);
-
-    // Row 2: Brand, Logo Frame/Outline, Logo Color
-    ui.horizontal(|ui| {
-        let brand_lbl = if is_vi { "Thương hiệu:" } else { "Brand:" };
-        ui.label(egui::RichText::new(brand_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
-        let cur_net = state.overlay_options.network;
-        egui::ComboBox::from_id_salt("network_select")
-            .width(95.0)
-            .selected_text(egui::RichText::new(cur_net.display_name_lang(is_vi)).size(11.0).color(md3::ON_SURFACE))
-            .show_ui(ui, |ui| {
-                for net in [
-                    PaymentNetwork::None,
-                    PaymentNetwork::Custom,
-                ] {
-                    let is_sel = cur_net == net;
-                    if ui.selectable_label(is_sel, net.display_name_lang(is_vi)).clicked() {
-                        if state.overlay_options.network != net {
-                            state.overlay_options.network = net;
-                            if net != PaymentNetwork::None {
-                                state.active_layer = ActiveTransformLayer::Logo;
+    // SECTION 2: Background Preset & Finish
+    let bg_name = state.overlay_options.bg_preset.display_name_lang(is_vi);
+    studio_accordion_card(
+        ui,
+        "studio_sec_bg_finish",
+        if is_vi { "🖼️ Nền Thẻ & Phủ Bề Mặt (Finish)" } else { "🖼️ Background & Surface Finish" },
+        true,
+        Some(bg_name),
+        |ui| {
+            ui.horizontal(|ui| {
+                let bg_lbl = if is_vi { "Nền:" } else { "Background:" };
+                ui.label(egui::RichText::new(bg_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
+                let cur_bg = state.overlay_options.bg_preset;
+                egui::ComboBox::from_id_salt("bg_preset_select")
+                    .width(155.0)
+                    .selected_text(egui::RichText::new(cur_bg.display_name_lang(is_vi)).size(11.0).color(md3::ON_SURFACE))
+                    .show_ui(ui, |ui| {
+                        for preset in [
+                            CardBackgroundPreset::CustomImage,
+                            CardBackgroundPreset::MatteBlack,
+                            CardBackgroundPreset::OceanNavy,
+                            CardBackgroundPreset::BrushedGold,
+                            CardBackgroundPreset::EmeraldLuxury,
+                            CardBackgroundPreset::TitaniumMinimal,
+                            CardBackgroundPreset::CrimsonVelvet,
+                            CardBackgroundPreset::DeepCyberViolet,
+                        ] {
+                            let is_sel = cur_bg == preset;
+                            if ui.selectable_label(is_sel, preset.display_name_lang(is_vi)).clicked() {
+                                if state.overlay_options.bg_preset != preset {
+                                    state.overlay_options.bg_preset = preset;
+                                    overlay_changed = true;
+                                }
                             }
+                        }
+                    });
+
+                let finish_lbl = if is_vi { "Chất liệu:" } else { "Finish:" };
+                ui.label(egui::RichText::new(finish_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
+                let cur_finish = state.overlay_options.finish;
+                egui::ComboBox::from_id_salt("finish_select")
+                    .width(130.0)
+                    .selected_text(egui::RichText::new(cur_finish.display_name_lang(is_vi)).size(11.0).color(md3::ON_SURFACE))
+                    .show_ui(ui, |ui| {
+                        for finish in [
+                            CardFinish::Standard,
+                            CardFinish::MetallicSheen,
+                            CardFinish::CarbonWeave,
+                            CardFinish::CustomTexture,
+                        ] {
+                            let is_sel = cur_finish == finish;
+                            if ui.selectable_label(is_sel, finish.display_name_lang(is_vi)).clicked() {
+                                if state.overlay_options.finish != finish {
+                                    state.overlay_options.finish = finish;
+                                    if finish == CardFinish::CustomTexture {
+                                        state.active_layer = ActiveTransformLayer::Finish;
+                                    }
+                                    overlay_changed = true;
+                                }
+                            }
+                        }
+                    });
+            });
+
+            if state.overlay_options.finish == CardFinish::CustomTexture || state.custom_finish_image.is_some() {
+                ui.add_space(3.0);
+                ui.horizontal(|ui| {
+                    let tex_title = if let Some(path) = &state.custom_finish_path {
+                        format!("Texture: {}", path.file_name().and_then(|n| n.to_str()).unwrap_or("texture.png"))
+                    } else {
+                        if is_vi { "Tải lên Texture / Foil (PNG, SVG, JPG)...".to_string() } else { "Upload Texture / Foil...".to_string() }
+                    };
+                    if m3_button_tonal(ui, &tex_title) {
+                        if state.select_custom_finish().is_ok() {
                             overlay_changed = true;
                         }
                     }
-                }
-            });
-
-        ui.label(egui::RichText::new("Frame:").size(11.0).color(md3::ON_SURFACE_VARIANT));
-        let cur_badge = state.overlay_options.logo_style;
-        egui::ComboBox::from_id_salt("logo_badge_select")
-            .width(115.0)
-            .selected_text(egui::RichText::new(cur_badge.display_name()).size(11.0).color(md3::ON_SURFACE))
-            .show_ui(ui, |ui| {
-                for style in [
-                    LogoBadgeStyle::Transparent,
-                    LogoBadgeStyle::ThinOutline,
-                    LogoBadgeStyle::FrostedGlass,
-                    LogoBadgeStyle::SolidDark,
-                    LogoBadgeStyle::SolidLight,
-                    LogoBadgeStyle::SubtleGlow,
-                ] {
-                    let is_sel = cur_badge == style;
-                    if ui.selectable_label(is_sel, style.display_name_lang(is_vi)).clicked() {
-                        if state.overlay_options.logo_style != style {
-                            state.overlay_options.logo_style = style;
+                    if state.custom_finish_image.is_some() {
+                        let clear_txt = if is_vi { "Xóa" } else { "Clear" };
+                        if ui.button(egui::RichText::new(clear_txt).size(11.0).color(md3::ERROR)).clicked() {
+                            state.custom_finish_image = None;
+                            state.custom_finish_path = None;
+                            state.overlay_options.finish = CardFinish::Standard;
                             overlay_changed = true;
                         }
                     }
-                }
+                });
+
+                ui.horizontal(|ui| {
+                    let op_lbl = if is_vi { "Độ mờ:" } else { "Opacity:" };
+                    ui.label(egui::RichText::new(op_lbl).size(10.5).color(md3::ON_SURFACE_VARIANT));
+                    let mut op_pct = (state.overlay_options.finish_opacity * 100.0).round() as i32;
+                    if ui.add(egui::Slider::new(&mut op_pct, 5..=100).suffix("%")).changed() {
+                        state.overlay_options.finish_opacity = (op_pct as f32 / 100.0).clamp(0.05, 1.0);
+                        overlay_changed = true;
+                    }
+
+                    let sc_lbl = if is_vi { "Tỉ lệ:" } else { "Scale:" };
+                    ui.label(egui::RichText::new(sc_lbl).size(10.5).color(md3::ON_SURFACE_VARIANT));
+                    let mut sc_pct = (state.overlay_options.finish_scale * 100.0).round() as i32;
+                    if ui.add(egui::Slider::new(&mut sc_pct, 20..=500).suffix("%")).changed() {
+                        state.overlay_options.finish_scale = (sc_pct as f32 / 100.0).clamp(0.1, 10.0);
+                        overlay_changed = true;
+                    }
+
+                    let reset_tex_lbl = if is_vi { "↺ Đặt lại" } else { "↺ Reset" };
+                    if ui.button(egui::RichText::new(reset_tex_lbl).size(10.5).color(md3::PRIMARY)).clicked() {
+                        state.overlay_options.finish_x = 0.0;
+                        state.overlay_options.finish_y = 0.0;
+                        state.overlay_options.finish_scale = 1.0;
+                        state.overlay_options.finish_opacity = 0.60;
+                        overlay_changed = true;
+                    }
+                });
+            }
+        },
+    );
+
+    // SECTION 3: Brand & Logo
+    let brand_status = state.overlay_options.network.display_name_lang(is_vi);
+    let logo_open = state.overlay_options.network != PaymentNetwork::None;
+    studio_accordion_card(
+        ui,
+        "studio_sec_brand",
+        if is_vi { "🏷️ Thương Hiệu & Logo" } else { "🏷️ Brand & Logo" },
+        logo_open,
+        Some(brand_status),
+        |ui| {
+            ui.horizontal(|ui| {
+                let brand_lbl = if is_vi { "Thương hiệu:" } else { "Brand:" };
+                ui.label(egui::RichText::new(brand_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
+                let cur_net = state.overlay_options.network;
+                egui::ComboBox::from_id_salt("network_select")
+                    .width(95.0)
+                    .selected_text(egui::RichText::new(cur_net.display_name_lang(is_vi)).size(11.0).color(md3::ON_SURFACE))
+                    .show_ui(ui, |ui| {
+                        for net in [
+                            PaymentNetwork::None,
+                            PaymentNetwork::Custom,
+                        ] {
+                            let is_sel = cur_net == net;
+                            if ui.selectable_label(is_sel, net.display_name_lang(is_vi)).clicked() {
+                                if state.overlay_options.network != net {
+                                    state.overlay_options.network = net;
+                                    if net != PaymentNetwork::None {
+                                        state.active_layer = ActiveTransformLayer::Logo;
+                                    }
+                                    overlay_changed = true;
+                                }
+                            }
+                        }
+                    });
+
+                ui.label(egui::RichText::new("Frame:").size(11.0).color(md3::ON_SURFACE_VARIANT));
+                let cur_badge = state.overlay_options.logo_style;
+                egui::ComboBox::from_id_salt("logo_badge_select")
+                    .width(115.0)
+                    .selected_text(egui::RichText::new(cur_badge.display_name()).size(11.0).color(md3::ON_SURFACE))
+                    .show_ui(ui, |ui| {
+                        for style in [
+                            LogoBadgeStyle::Transparent,
+                            LogoBadgeStyle::ThinOutline,
+                            LogoBadgeStyle::FrostedGlass,
+                            LogoBadgeStyle::SolidDark,
+                            LogoBadgeStyle::SolidLight,
+                            LogoBadgeStyle::SubtleGlow,
+                        ] {
+                            let is_sel = cur_badge == style;
+                            if ui.selectable_label(is_sel, style.display_name_lang(is_vi)).clicked() {
+                                if state.overlay_options.logo_style != style {
+                                    state.overlay_options.logo_style = style;
+                                    overlay_changed = true;
+                                }
+                            }
+                        }
+                    });
+
+                let color_lbl = if is_vi { "Màu sắc:" } else { "Color:" };
+                ui.label(egui::RichText::new(color_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
+                let cur_color = state.overlay_options.logo_color;
+                egui::ComboBox::from_id_salt("logo_color_select")
+                    .width(110.0)
+                    .selected_text(egui::RichText::new(cur_color.display_name_lang(is_vi)).size(11.0).color(md3::ON_SURFACE))
+                    .show_ui(ui, |ui| {
+                        for theme in [
+                            LogoColorTheme::Original,
+                            LogoColorTheme::MonochromeWhite,
+                            LogoColorTheme::LuxuryGold,
+                            LogoColorTheme::SilverPlatinum,
+                            LogoColorTheme::StealthBlack,
+                        ] {
+                            let is_sel = cur_color == theme;
+                            if ui.selectable_label(is_sel, theme.display_name_lang(is_vi)).clicked() {
+                                if state.overlay_options.logo_color != theme {
+                                    state.overlay_options.logo_color = theme;
+                                    overlay_changed = true;
+                                }
+                            }
+                        }
+                    });
             });
 
-        let color_lbl = if is_vi { "Màu sắc:" } else { "Color:" };
-        ui.label(egui::RichText::new(color_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
-        let cur_color = state.overlay_options.logo_color;
-        egui::ComboBox::from_id_salt("logo_color_select")
-            .width(110.0)
-            .selected_text(egui::RichText::new(cur_color.display_name_lang(is_vi)).size(11.0).color(md3::ON_SURFACE))
-            .show_ui(ui, |ui| {
-                for theme in [
-                    LogoColorTheme::Original,
-                    LogoColorTheme::MonochromeWhite,
-                    LogoColorTheme::LuxuryGold,
-                    LogoColorTheme::SilverPlatinum,
-                    LogoColorTheme::StealthBlack,
-                ] {
-                    let is_sel = cur_color == theme;
-                    if ui.selectable_label(is_sel, theme.display_name_lang(is_vi)).clicked() {
-                        if state.overlay_options.logo_color != theme {
-                            state.overlay_options.logo_color = theme;
+            if state.overlay_options.network == PaymentNetwork::Custom || state.custom_logo_image.is_some() {
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    let btn_title = if let Some(path) = &state.custom_logo_path {
+                        format!("Custom: {}", path.file_name().and_then(|n| n.to_str()).unwrap_or("logo.png"))
+                    } else {
+                        if is_vi { "Tải Logo riêng (PNG, SVG, JPG)...".to_string() } else { "Upload Custom Logo...".to_string() }
+                    };
+                    if m3_button_tonal(ui, &btn_title) {
+                        if state.select_custom_logo().is_ok() {
                             overlay_changed = true;
                         }
                     }
-                }
-            });
-    });
+                    if state.custom_logo_image.is_some() {
+                        let clear_logo = if is_vi { "Xóa" } else { "Clear" };
+                        if ui.button(egui::RichText::new(clear_logo).size(11.0).color(md3::ERROR)).clicked() {
+                            state.custom_logo_image = None;
+                            state.custom_logo_path = None;
+                            state.overlay_options.network = PaymentNetwork::None;
+                            overlay_changed = true;
+                        }
+                    }
+                });
+            }
 
-    // Row 2b: Custom Logo Upload
-    if state.overlay_options.network == PaymentNetwork::Custom || state.custom_logo_image.is_some() {
-        ui.add_space(4.0);
-        ui.horizontal(|ui| {
-            let btn_title = if let Some(path) = &state.custom_logo_path {
-                format!("Custom: {}", path.file_name().and_then(|n| n.to_str()).unwrap_or("logo.png"))
-            } else {
-                if is_vi { "Tải Logo riêng (PNG)...".to_string() } else { "Upload Custom Logo (PNG)...".to_string() }
-            };
-            if m3_button_tonal(ui, &btn_title) {
-                if state.select_custom_logo().is_ok() {
+            if state.overlay_options.network != PaymentNetwork::None {
+                ui.add_space(2.0);
+                ui.horizontal(|ui| {
+                    let logo_sc_lbl = if is_vi { "Tỉ lệ Logo:" } else { "Logo Scale:" };
+                    ui.label(egui::RichText::new(logo_sc_lbl).size(10.5).color(md3::ON_SURFACE_VARIANT));
+                    let mut logo_sc_pct = (state.overlay_options.logo_scale * 100.0).round() as i32;
+                    if ui.add(egui::Slider::new(&mut logo_sc_pct, 30..=250).suffix("%")).changed() {
+                        state.overlay_options.logo_scale = (logo_sc_pct as f32 / 100.0).clamp(0.2, 5.0);
+                        overlay_changed = true;
+                    }
+
+                    ui.label(egui::RichText::new("X:").size(10.5).color(md3::ON_SURFACE_VARIANT));
+                    if ui.add(egui::DragValue::new(&mut state.overlay_options.logo_x).range(0.0..=1500.0).speed(1.0)).changed() {
+                        overlay_changed = true;
+                    }
+
+                    ui.label(egui::RichText::new("Y:").size(10.5).color(md3::ON_SURFACE_VARIANT));
+                    if ui.add(egui::DragValue::new(&mut state.overlay_options.logo_y).range(0.0..=1000.0).speed(1.0)).changed() {
+                        overlay_changed = true;
+                    }
+
+                    let reset_logo_lbl = if is_vi { "↺ Đặt lại" } else { "↺ Reset" };
+                    if ui.button(egui::RichText::new(reset_logo_lbl).size(10.5).color(md3::PRIMARY)).clicked() {
+                        state.overlay_options.logo_x = 1205.0;
+                        state.overlay_options.logo_y = 800.0;
+                        state.overlay_options.logo_scale = 1.0;
+                        overlay_changed = true;
+                    }
+                });
+            }
+        },
+    );
+
+    // SECTION 4: EMV Chip & Contactless Wave
+    let chip_badge = if state.overlay_options.show_chip { "Chip: Bật" } else { "Chip: Tắt" };
+    let chip_open = state.overlay_options.show_chip || state.overlay_options.show_contactless;
+    studio_accordion_card(
+        ui,
+        "studio_sec_chip",
+        if is_vi { "💳 Chip EMV & Sóng Contactless" } else { "💳 EMV Chip & Contactless Wave" },
+        chip_open,
+        Some(chip_badge),
+        |ui| {
+            ui.horizontal(|ui| {
+                let chip_cb_lbl = if is_vi { "Chip EMV kim loại" } else { "EMV Gold Chip" };
+                if ui.checkbox(&mut state.overlay_options.show_chip, egui::RichText::new(chip_cb_lbl).size(11.5).color(md3::ON_SURFACE)).changed() {
+                    if state.overlay_options.show_chip {
+                        state.active_layer = ActiveTransformLayer::Chip;
+                    }
                     overlay_changed = true;
                 }
-            }
-            if state.custom_logo_image.is_some() {
-                let clear_logo = if is_vi { "Xóa" } else { "Clear" };
-                if ui.button(egui::RichText::new(clear_logo).size(11.0).color(md3::ERROR)).clicked() {
-                    state.custom_logo_image = None;
-                    state.custom_logo_path = None;
-                    state.overlay_options.network = PaymentNetwork::None;
+                let wave_cb_lbl = if is_vi { "Sóng Contactless" } else { "Contactless Wave" };
+                if ui.checkbox(&mut state.overlay_options.show_contactless, egui::RichText::new(wave_cb_lbl).size(11.5).color(md3::ON_SURFACE)).changed() {
+                    if state.overlay_options.show_contactless {
+                        state.active_layer = ActiveTransformLayer::Wave;
+                    }
                     overlay_changed = true;
                 }
-            }
-        });
-    }
+            });
 
-    // Row 2c: Logo Transform Controls
-    if state.overlay_options.network != PaymentNetwork::None {
-        ui.add_space(2.0);
-        ui.horizontal(|ui| {
-            let logo_sc_lbl = if is_vi { "Tỉ lệ Logo:" } else { "Logo Scale:" };
-            ui.label(egui::RichText::new(logo_sc_lbl).size(10.5).color(md3::ON_SURFACE_VARIANT));
-            let mut logo_sc_pct = (state.overlay_options.logo_scale * 100.0).round() as i32;
-            if ui.add(egui::Slider::new(&mut logo_sc_pct, 30..=250).suffix("%")).changed() {
-                state.overlay_options.logo_scale = (logo_sc_pct as f32 / 100.0).clamp(0.2, 5.0);
-                overlay_changed = true;
-            }
-
-            ui.label(egui::RichText::new("X:").size(10.5).color(md3::ON_SURFACE_VARIANT));
-            if ui.add(egui::DragValue::new(&mut state.overlay_options.logo_x).range(0.0..=1500.0).speed(1.0)).changed() {
-                overlay_changed = true;
-            }
-
-            ui.label(egui::RichText::new("Y:").size(10.5).color(md3::ON_SURFACE_VARIANT));
-            if ui.add(egui::DragValue::new(&mut state.overlay_options.logo_y).range(0.0..=1000.0).speed(1.0)).changed() {
-                overlay_changed = true;
-            }
-
-            let reset_logo_lbl = if is_vi { "↺ Đặt lại" } else { "↺ Reset" };
-            let reset_logo_hover = if is_vi { "Đặt lại vị trí và tỉ lệ logo" } else { "Reset logo position and scale" };
-            if ui.button(egui::RichText::new(reset_logo_lbl).size(10.5).color(md3::PRIMARY))
-                .on_hover_text(reset_logo_hover)
-                .clicked()
-            {
-                state.overlay_options.logo_x = 1205.0;
-                state.overlay_options.logo_y = 800.0;
-                state.overlay_options.logo_scale = 1.0;
-                overlay_changed = true;
-            }
-        });
-    }
-
-    ui.add_space(4.0);
-
-    // Row 3: Hardware & Details Toggles
-    ui.horizontal(|ui| {
-        let chip_cb_lbl = if is_vi { "Chip EMV kim loại" } else { "EMV Gold Chip" };
-        if ui.checkbox(&mut state.overlay_options.show_chip, egui::RichText::new(chip_cb_lbl).size(11.5).color(md3::ON_SURFACE)).changed() {
             if state.overlay_options.show_chip {
-                state.active_layer = ActiveTransformLayer::Chip;
+                ui.add_space(2.0);
+                ui.horizontal(|ui| {
+                    let chip_title = if let Some(path) = &state.custom_chip_path {
+                        format!("Chip: {}", path.file_name().and_then(|n| n.to_str()).unwrap_or("chip.png"))
+                    } else {
+                        if is_vi { "Tải Chip riêng (PNG, SVG, JPG)...".to_string() } else { "Upload Custom Chip...".to_string() }
+                    };
+                    if m3_button_tonal(ui, &chip_title) {
+                        if state.select_custom_chip().is_ok() {
+                            overlay_changed = true;
+                        }
+                    }
+                    if state.custom_chip_image.is_some() {
+                        let def_gold_lbl = if is_vi { "Dùng Chip vàng mặc định" } else { "Use Default Gold" };
+                        if ui.button(egui::RichText::new(def_gold_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT)).clicked() {
+                            state.custom_chip_image = None;
+                            state.custom_chip_path = None;
+                            overlay_changed = true;
+                        }
+                    }
+                });
+
+                ui.horizontal(|ui| {
+                    let chip_sc_lbl = if is_vi { "Tỉ lệ Chip:" } else { "Chip Scale:" };
+                    ui.label(egui::RichText::new(chip_sc_lbl).size(10.5).color(md3::ON_SURFACE_VARIANT));
+                    let mut chip_sc_pct = (state.overlay_options.chip_scale * 100.0).round() as i32;
+                    if ui.add(egui::Slider::new(&mut chip_sc_pct, 30..=250).suffix("%")).changed() {
+                        state.overlay_options.chip_scale = (chip_sc_pct as f32 / 100.0).clamp(0.2, 5.0);
+                        overlay_changed = true;
+                    }
+
+                    ui.label(egui::RichText::new("X:").size(10.5).color(md3::ON_SURFACE_VARIANT));
+                    if ui.add(egui::DragValue::new(&mut state.overlay_options.chip_x).range(0.0..=1500.0).speed(1.0)).changed() {
+                        overlay_changed = true;
+                    }
+
+                    ui.label(egui::RichText::new("Y:").size(10.5).color(md3::ON_SURFACE_VARIANT));
+                    if ui.add(egui::DragValue::new(&mut state.overlay_options.chip_y).range(0.0..=1000.0).speed(1.0)).changed() {
+                        overlay_changed = true;
+                    }
+
+                    if ui.button(egui::RichText::new("↺ Reset").size(10.5).color(md3::PRIMARY)).clicked() {
+                        state.overlay_options.chip_x = 188.0;
+                        state.overlay_options.chip_y = 398.0;
+                        state.overlay_options.chip_scale = 1.0;
+                        state.overlay_options.chip_adj = LayerAdjustments::default();
+                        overlay_changed = true;
+                    }
+                });
             }
-            overlay_changed = true;
-        }
-        let wave_cb_lbl = if is_vi { "Sóng Contactless" } else { "Contactless Wave" };
-        if ui.checkbox(&mut state.overlay_options.show_contactless, egui::RichText::new(wave_cb_lbl).size(11.5).color(md3::ON_SURFACE)).changed() {
+
             if state.overlay_options.show_contactless {
-                state.active_layer = ActiveTransformLayer::Wave;
-            }
-            overlay_changed = true;
-        }
-        let details_cb_lbl = if is_vi { "Dập nổi thông tin thẻ" } else { "Emboss Card Details" };
-        if ui.checkbox(&mut state.overlay_options.details.show_details, egui::RichText::new(details_cb_lbl).size(11.5).color(md3::PRIMARY)).changed() {
-            overlay_changed = true;
-        }
-    });
+                ui.add_space(2.0);
+                ui.horizontal(|ui| {
+                    let wave_sc_lbl = if is_vi { "Tỉ lệ Sóng:" } else { "Wave Scale:" };
+                    ui.label(egui::RichText::new(wave_sc_lbl).size(10.5).color(md3::ON_SURFACE_VARIANT));
+                    let mut wave_sc_pct = (state.overlay_options.wave_scale * 100.0).round() as i32;
+                    if ui.add(egui::Slider::new(&mut wave_sc_pct, 30..=250).suffix("%")).changed() {
+                        state.overlay_options.wave_scale = (wave_sc_pct as f32 / 100.0).clamp(0.2, 5.0);
+                        overlay_changed = true;
+                    }
 
-    // Row 3b: Custom Chip Upload & Transform Controls
-    if state.overlay_options.show_chip {
-        ui.add_space(2.0);
-        ui.horizontal(|ui| {
-            let chip_title = if let Some(path) = &state.custom_chip_path {
-                format!("Chip: {}", path.file_name().and_then(|n| n.to_str()).unwrap_or("chip.png"))
-            } else {
-                if is_vi { "Tải Chip riêng (PNG)...".to_string() } else { "Upload Custom Chip (PNG)...".to_string() }
-            };
-            if m3_button_tonal(ui, &chip_title) {
-                if state.select_custom_chip().is_ok() {
-                    overlay_changed = true;
-                }
-            }
-            if state.custom_chip_image.is_some() {
-                let def_gold_lbl = if is_vi { "Dùng Chip vàng mặc định" } else { "Use Default Gold" };
-                let def_gold_hover = if is_vi { "Quay lại dùng chip EMV vàng mặc định" } else { "Revert to default procedural EMV gold chip" };
-                if ui.button(egui::RichText::new(def_gold_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT))
-                    .on_hover_text(def_gold_hover)
-                    .clicked()
-                {
-                    state.custom_chip_image = None;
-                    state.custom_chip_path = None;
-                    overlay_changed = true;
-                }
-            }
-        });
+                    ui.label(egui::RichText::new("X:").size(10.5).color(md3::ON_SURFACE_VARIANT));
+                    if ui.add(egui::DragValue::new(&mut state.overlay_options.wave_x).range(0.0..=1500.0).speed(1.0)).changed() {
+                        overlay_changed = true;
+                    }
 
-        ui.horizontal(|ui| {
-            let chip_sc_lbl = if is_vi { "Tỉ lệ Chip:" } else { "Chip Scale:" };
-            ui.label(egui::RichText::new(chip_sc_lbl).size(10.5).color(md3::ON_SURFACE_VARIANT));
-            let mut chip_sc_pct = (state.overlay_options.chip_scale * 100.0).round() as i32;
-            if ui.add(egui::Slider::new(&mut chip_sc_pct, 30..=250).suffix("%")).changed() {
-                state.overlay_options.chip_scale = (chip_sc_pct as f32 / 100.0).clamp(0.2, 5.0);
+                    ui.label(egui::RichText::new("Y:").size(10.5).color(md3::ON_SURFACE_VARIANT));
+                    if ui.add(egui::DragValue::new(&mut state.overlay_options.wave_y).range(0.0..=1000.0).speed(1.0)).changed() {
+                        overlay_changed = true;
+                    }
+
+                    if ui.button(egui::RichText::new("↺ Reset").size(10.5).color(md3::PRIMARY)).clicked() {
+                        state.overlay_options.wave_x = 375.0;
+                        state.overlay_options.wave_y = 375.0;
+                        state.overlay_options.wave_scale = 1.0;
+                        state.overlay_options.wave_adj = LayerAdjustments::default();
+                        overlay_changed = true;
+                    }
+                });
+            }
+        },
+    );
+
+    // SECTION 5: Card Details & Typography
+    state.overlay_options.details.ensure_items();
+    let num_items = state.overlay_options.details.items.len();
+    let text_badge = format!("{} dòng chữ", num_items);
+    studio_accordion_card(
+        ui,
+        "studio_sec_details",
+        if is_vi { "📝 Thông Tin Thẻ & Quản Lý Font" } else { "📝 Card Text & Typography" },
+        true,
+        Some(&text_badge),
+        |ui| {
+            let details_cb_lbl = if is_vi { "Dập nổi thông tin thẻ" } else { "Emboss Card Details" };
+            if ui.checkbox(&mut state.overlay_options.details.show_details, egui::RichText::new(details_cb_lbl).size(11.5).color(md3::PRIMARY)).changed() {
                 overlay_changed = true;
             }
 
-            ui.label(egui::RichText::new("X:").size(10.5).color(md3::ON_SURFACE_VARIANT));
-            if ui.add(egui::DragValue::new(&mut state.overlay_options.chip_x).range(0.0..=1500.0).speed(1.0)).changed() {
-                overlay_changed = true;
-            }
+            if state.overlay_options.details.show_details {
+                ui.add_space(4.0);
 
-            ui.label(egui::RichText::new("Y:").size(10.5).color(md3::ON_SURFACE_VARIANT));
-            if ui.add(egui::DragValue::new(&mut state.overlay_options.chip_y).range(0.0..=1000.0).speed(1.0)).changed() {
-                overlay_changed = true;
-            }
-
-            if ui.button(egui::RichText::new("↺ Reset").size(10.5).color(md3::PRIMARY))
-                .on_hover_text("Reset chip to standard ISO card position and size")
-                .clicked()
-            {
-                state.overlay_options.chip_x = 188.0;
-                state.overlay_options.chip_y = 398.0;
-                state.overlay_options.chip_scale = 1.0;
-                state.overlay_options.chip_adj = LayerAdjustments::default();
-                overlay_changed = true;
-            }
-        });
-    }
-
-    // Row 3c: Contactless Wave Controls
-    if state.overlay_options.show_contactless {
-        ui.add_space(2.0);
-        ui.horizontal(|ui| {
-            let wave_sc_lbl = if is_vi { "Tỉ lệ Sóng:" } else { "Wave Scale:" };
-            ui.label(egui::RichText::new(wave_sc_lbl).size(10.5).color(md3::ON_SURFACE_VARIANT));
-            let mut wave_sc_pct = (state.overlay_options.wave_scale * 100.0).round() as i32;
-            if ui.add(egui::Slider::new(&mut wave_sc_pct, 30..=250).suffix("%")).changed() {
-                state.overlay_options.wave_scale = (wave_sc_pct as f32 / 100.0).clamp(0.2, 5.0);
-                overlay_changed = true;
-            }
-
-            ui.label(egui::RichText::new("X:").size(10.5).color(md3::ON_SURFACE_VARIANT));
-            if ui.add(egui::DragValue::new(&mut state.overlay_options.wave_x).range(0.0..=1500.0).speed(1.0)).changed() {
-                overlay_changed = true;
-            }
-
-            ui.label(egui::RichText::new("Y:").size(10.5).color(md3::ON_SURFACE_VARIANT));
-            if ui.add(egui::DragValue::new(&mut state.overlay_options.wave_y).range(0.0..=1000.0).speed(1.0)).changed() {
-                overlay_changed = true;
-            }
-
-            if ui.button(egui::RichText::new("↺ Reset").size(10.5).color(md3::PRIMARY))
-                .on_hover_text("Reset wave to default position and size")
-                .clicked()
-            {
-                state.overlay_options.wave_x = 375.0;
-                state.overlay_options.wave_y = 375.0;
-                state.overlay_options.wave_scale = 1.0;
-                state.overlay_options.wave_adj = LayerAdjustments::default();
-                overlay_changed = true;
-            }
-        });
-    }
-
-    // Row 4: Card Details Inputs & Modular Text Items
-    if state.overlay_options.details.show_details {
-        state.overlay_options.details.ensure_items();
-        ui.add_space(4.0);
-        egui::Frame::NONE
-            .fill(md3::SURFACE_CONTAINER_HIGH)
-            .corner_radius(6.0)
-            .inner_margin(8.0)
-            .show(ui, |ui| {
+                // Row 1: Global Style, Backdrop, Offset, Scale
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new("Style:").size(11.0).color(md3::ON_SURFACE_VARIANT));
                     let cur_emboss = state.overlay_options.details.emboss_style;
                     egui::ComboBox::from_id_salt("emboss_style_select")
-                        .width(125.0)
+                        .width(120.0)
                         .selected_text(egui::RichText::new(cur_emboss.display_name()).size(11.0).color(md3::ON_SURFACE))
                         .show_ui(ui, |ui| {
                             for style in [
@@ -441,7 +552,7 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
                     ui.label(egui::RichText::new(backdrop_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                     let cur_backdrop = state.overlay_options.details.backdrop;
                     egui::ComboBox::from_id_salt("text_backdrop_select")
-                        .width(135.0)
+                        .width(130.0)
                         .selected_text(egui::RichText::new(cur_backdrop.display_name_lang(is_vi)).size(11.0).color(md3::ON_SURFACE))
                         .show_ui(ui, |ui| {
                             for b in [
@@ -481,47 +592,79 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
                     }
                 });
 
-                ui.add_space(3.0);
-                ui.horizontal(|ui| {
-                    let custom_font_lbl = if is_vi { "Font tùy chỉnh:" } else { "Custom Font:" };
-                    ui.label(egui::RichText::new(custom_font_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
+                ui.add_space(6.0);
 
-                    if let Some(name) = &state.custom_font_name {
-                        ui.label(egui::RichText::new(format!("🔤 {}", name)).size(11.0).color(md3::PRIMARY).strong());
-                        let rm_hint = if is_vi { "Gỡ font tùy chỉnh này" } else { "Remove custom font" };
-                        if ui.button(egui::RichText::new("✕").size(10.0).color(md3::ERROR)).on_hover_text(rm_hint).clicked() {
-                            state.clear_custom_font();
-                            overlay_changed = true;
-                        }
-                    } else {
-                        let upload_btn_lbl = if is_vi { "📁 Tải lên Font (.ttf, .otf)..." } else { "📁 Upload Font (.ttf, .otf)..." };
-                        let upload_hint = if is_vi { "Chọn file font TTF hoặc OTF từ máy tính của bạn" } else { "Pick a TTF or OTF font file from your PC" };
-                        if ui.button(egui::RichText::new(upload_btn_lbl).size(10.5).color(md3::PRIMARY))
-                            .on_hover_text(upload_hint)
-                            .clicked()
-                        {
-                            if state.load_custom_font().is_ok() {
-                                overlay_changed = true;
-                            }
-                        }
-                    }
-                });
+                // PROMINENT FONT MANAGEMENT CARD
+                egui::Frame::NONE
+                    .fill(md3::SURFACE_CONTAINER_HIGH)
+                    .corner_radius(6.0)
+                    .inner_margin(8.0)
+                    .stroke(egui::Stroke::new(1.0_f32, md3::PRIMARY))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(if is_vi { "🔤 QUẢN LÝ FONT CHỮ (Typography)" } else { "🔤 TYPOGRAPHY & FONTS" }).strong().size(11.5).color(md3::PRIMARY));
+                        });
+                        ui.add_space(3.0);
 
-                ui.add_space(5.0);
-                ui.separator();
-                ui.add_space(3.0);
+                        let active_font_name = state.custom_font_name.clone();
+                        if let Some(name) = active_font_name {
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new(format!("✅ Font đang dùng: {}", name)).strong().size(11.0).color(md3::ON_SURFACE));
+                                if ui.button(egui::RichText::new(if is_vi { "📂 Đổi font..." } else { "📂 Change..." }).size(10.5).color(md3::PRIMARY)).clicked() {
+                                    if state.load_custom_font().is_ok() {
+                                        overlay_changed = true;
+                                    }
+                                }
+                                if ui.button(egui::RichText::new("✕").size(10.5).color(md3::ERROR))
+                                    .on_hover_text(if is_vi { "Gỡ bỏ font tùy chỉnh này" } else { "Remove custom font" })
+                                    .clicked()
+                                {
+                                    state.clear_custom_font();
+                                    overlay_changed = true;
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                if ui.button(egui::RichText::new(if is_vi { "⚡ Áp dụng font này cho tất cả dòng chữ" } else { "⚡ Apply to all text fields" }).size(10.5).color(md3::PRIMARY))
+                                    .on_hover_text(if is_vi { "Đặt tất cả các dòng chữ bên dưới dùng font này" } else { "Set all text fields below to use this custom font" })
+                                    .clicked()
+                                {
+                                    state.apply_custom_font_to_all_items();
+                                    overlay_changed = true;
+                                }
+                            });
+                        } else {
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new(if is_vi { "ℹ️ Font: Hệ thống (Segoe UI / OCR)" } else { "ℹ️ Font: System default" }).size(10.5).color(md3::ON_SURFACE_VARIANT));
+                                if ui.button(egui::RichText::new(if is_vi { "📁 Tải lên font tùy chỉnh (.ttf, .otf)..." } else { "📁 Upload custom font (.ttf, .otf)..." }).size(11.0).color(md3::PRIMARY).strong())
+                                    .on_hover_text(if is_vi { "Chọn file font TTF hoặc OTF bất kỳ từ máy tính của bạn" } else { "Select any TTF or OTF font file from your PC" })
+                                    .clicked()
+                                {
+                                    if state.load_custom_font().is_ok() {
+                                        overlay_changed = true;
+                                    }
+                                }
+                            });
+                        }
+                        ui.label(egui::RichText::new(if is_vi {
+                            "💡 Tải font lên tại đây. Tất cả các dòng chữ sẽ tự động dùng font mới, hoặc bạn có thể chỉnh riêng từng dòng thành font khác tùy ý."
+                        } else {
+                            "💡 Upload your font here. All text fields will automatically switch to it, or you can pick presets per-item."
+                        }).size(10.0).color(md3::ON_SURFACE_VARIANT));
+                    });
+
+                ui.add_space(6.0);
 
                 // Section header for modular text fields
                 ui.horizontal(|ui| {
-                    let sec_hdr = if is_vi { "📝 Thông tin thẻ (Các dòng chữ)" } else { "📝 Card Text Fields" };
+                    let sec_hdr = if is_vi { "📝 Các dòng chữ trên thẻ" } else { "📝 Card Text Fields" };
                     ui.label(egui::RichText::new(sec_hdr).strong().size(11.5).color(md3::ON_SURFACE));
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let add_lbl = if is_vi { "➕ Thêm chữ" } else { "➕ Add Text" };
+                        let add_lbl = if is_vi { "➕ Thêm dòng chữ" } else { "➕ Add Text Field" };
                         let add_btn = egui::Button::new(
                             egui::RichText::new(add_lbl).size(10.5).color(md3::PRIMARY).strong()
                         )
-                        .fill(md3::SURFACE_CONTAINER)
+                        .fill(md3::SURFACE_CONTAINER_HIGH)
                         .corner_radius(12)
                         .stroke(egui::Stroke::new(1.0_f32, md3::PRIMARY));
 
@@ -560,7 +703,7 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
                         .inner_margin(6.0)
                         .stroke(frame_stroke)
                         .show(ui, |ui| {
-                            // Row 1: Select Chip, Label, Visibility, Uppercase, Delete
+                            // Row 1: Select Chip, Visibility, Label, Uppercase, Frosted Pill toggle, Delete
                             ui.horizontal(|ui| {
                                 let sel_btn_lbl = format!("#{}", idx + 1);
                                 if ui.selectable_label(is_selected, sel_btn_lbl).clicked() {
@@ -573,7 +716,7 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
                                 }
 
                                 ui.label(egui::RichText::new(if is_vi { "Nhãn:" } else { "Label:" }).size(10.5).color(md3::ON_SURFACE_VARIANT));
-                                if ui.add(egui::TextEdit::singleline(&mut item.label).desired_width(110.0)).changed() {
+                                if ui.add(egui::TextEdit::singleline(&mut item.label).desired_width(90.0)).changed() {
                                     overlay_changed = true;
                                 }
 
@@ -583,6 +726,13 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
                                     .clicked()
                                 {
                                     item.is_uppercase = !item.is_uppercase;
+                                    overlay_changed = true;
+                                }
+
+                                if ui.checkbox(&mut item.has_backdrop, if is_vi { "🧊 Nền mờ" } else { "🧊 Pill" })
+                                    .on_hover_text(if is_vi { "Bật/tắt hộp nền mờ bo góc riêng cho dòng chữ này" } else { "Toggle frosted pill background for this text line" })
+                                    .changed()
+                                {
                                     overlay_changed = true;
                                 }
 
@@ -601,7 +751,7 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
                             // Row 2: Text content input
                             ui.horizontal(|ui| {
                                 ui.label(egui::RichText::new(if is_vi { "Chữ:" } else { "Text:" }).size(10.5).color(md3::ON_SURFACE_VARIANT));
-                                if ui.add(egui::TextEdit::singleline(&mut item.content).desired_width(260.0)).changed() {
+                                if ui.add(egui::TextEdit::singleline(&mut item.content).desired_width(280.0)).changed() {
                                     overlay_changed = true;
                                 }
                             });
@@ -656,37 +806,36 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
                     state.remove_text_item(rm_idx);
                     overlay_changed = true;
                 }
-            });
-    }
+            }
+        },
+    );
 
-    // Section 5: Custom Widgets
-    ui.add_space(4.0);
-    egui::Frame::NONE
-        .fill(md3::SURFACE_CONTAINER)
-        .corner_radius(8.0)
-        .inner_margin(egui::Margin::symmetric(10, 8))
-        .stroke(egui::Stroke::new(1.0_f32, md3::OUTLINE_VARIANT))
-        .show(ui, |ui| {
+    // SECTION 6: Custom Widgets
+    let num_w = state.custom_widgets.len();
+    let w_badge = format!("{} widget", num_w);
+    let w_open = !state.custom_widgets.is_empty();
+    studio_accordion_card(
+        ui,
+        "studio_sec_widgets",
+        if is_vi { "🧩 Widget Tùy Chọn (Custom Widgets)" } else { "🧩 Custom Widgets" },
+        w_open,
+        Some(&w_badge),
+        |ui| {
             ui.horizontal(|ui| {
-                let widget_sec_title = if is_vi { "🧩 Widget Tùy Chọn (Custom Widgets)" } else { "🧩 Custom Widgets" };
-                ui.label(egui::RichText::new(widget_sec_title).strong().size(11.5).color(md3::ON_SURFACE));
-
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let add_btn_text = if is_vi { "➕ Thêm Widget..." } else { "➕ Add Widget..." };
-                    if ui.button(egui::RichText::new(add_btn_text).size(10.5).color(md3::PRIMARY))
-                        .on_hover_text(if is_vi { "Tải lên ảnh PNG, JPG hoặc WebP bất kỳ làm widget trên thẻ" } else { "Upload any PNG, JPG, or WebP image as a card widget" })
-                        .clicked()
-                    {
-                        if state.add_custom_widget().is_ok() {
-                            overlay_changed = true;
-                        }
+                let add_btn_text = if is_vi { "➕ Thêm Widget (PNG, SVG, JPG)..." } else { "➕ Add Widget..." };
+                if ui.button(egui::RichText::new(add_btn_text).size(10.5).color(md3::PRIMARY).strong())
+                    .on_hover_text(if is_vi { "Tải lên ảnh PNG, SVG, JPG hoặc WebP bất kỳ làm widget trên thẻ" } else { "Upload any image as a card widget" })
+                    .clicked()
+                {
+                    if state.add_custom_widget().is_ok() {
+                        overlay_changed = true;
                     }
-                });
+                }
             });
 
             if state.custom_widgets.is_empty() {
                 let empty_hint = if is_vi {
-                    "Chưa có widget nào. Nhấn \"➕ Thêm Widget...\" để tải lên bất kỳ hình ảnh nào (logo, sticker, chip, QR, chữ...)"
+                    "Chưa có widget nào. Nhấn \"➕ Thêm Widget...\" để tải lên hình ảnh bất kỳ (logo, sticker, chip, QR, chữ...)"
                 } else {
                     "No custom widgets added yet. Click \"➕ Add Widget...\" to upload any image (logo, sticker, custom chip, QR, badge...)"
                 };
@@ -750,10 +899,12 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
                     overlay_changed = true;
                 }
             }
-        });
+        },
+    );
 
     overlay_changed
 }
+
 
 pub fn draw_studio_preview(
     state: &mut CardStudioState,
@@ -888,12 +1039,13 @@ pub fn draw_studio_preview(
                         let item_x = item.x + ho;
                         let item_y = item.y + vo;
                         let font_sz = item.font_size * scale;
-                        let char_w = font_sz * 0.58 + item.letter_spacing * scale;
-                        let est_w = (item.content.chars().count() as f32 * char_w).max(40.0);
-                        let est_h = font_sz * 1.15;
+                        let font = crate::card_studio::render::resolve_font(item.font, state.custom_font_bytes.as_deref(), false);
+                        let text = if item.is_uppercase { item.content.to_uppercase() } else { item.content.clone() };
+                        let (_, offset_y, w, h) = crate::card_studio::render::calculate_text_bounds(&font, &text, font_sz, item.letter_spacing * scale);
+                        let pad = 6.0;
                         let text_rect = egui::Rect::from_min_size(
-                            egui::pos2(item_x, item_y - font_sz * 0.82),
-                            egui::vec2(est_w, est_h),
+                            egui::pos2(item_x - pad, item_y + offset_y - pad),
+                            egui::vec2(w + pad * 2.0, h + pad * 2.0),
                         );
                         if text_rect.contains(egui::pos2(cx, cy)) {
                             text_hit = Some(idx);
@@ -1300,14 +1452,18 @@ pub fn draw_studio_preview(
                         let item_x = item.x + ho;
                         let item_y = item.y + vo;
                         let font_sz = item.font_size * scale;
-                        let char_w = font_sz * 0.58 + item.letter_spacing * scale;
-                        let est_w = (item.content.chars().count() as f32 * char_w).max(40.0);
-                        let est_h = font_sz * 1.15;
+                        let font = crate::card_studio::render::resolve_font(item.font, state.custom_font_bytes.as_deref(), false);
+                        let text = if item.is_uppercase { item.content.to_uppercase() } else { item.content.clone() };
+                        let (_, offset_y, w, h) = crate::card_studio::render::calculate_text_bounds(&font, &text, font_sz, item.letter_spacing * scale);
                         let bx = rect.left() + item_x * canvas_to_preview;
-                        let by = rect.top() + (item_y - font_sz * 0.82) * canvas_to_preview;
-                        let bw = est_w * canvas_to_preview;
-                        let bh = est_h * canvas_to_preview;
-                        let box_rect = egui::Rect::from_min_size(egui::pos2(bx, by), egui::vec2(bw, bh));
+                        let by = rect.top() + (item_y + offset_y) * canvas_to_preview;
+                        let bw = w * canvas_to_preview;
+                        let bh = h * canvas_to_preview;
+                        let pad = 2.5;
+                        let box_rect = egui::Rect::from_min_size(
+                            egui::pos2(bx - pad, by - pad),
+                            egui::vec2(bw + pad * 2.0, bh + pad * 2.0),
+                        );
                         if i == state.selected_text_index {
                             painter.rect_stroke(
                                 box_rect,
@@ -1510,38 +1666,15 @@ pub fn draw_studio_preview(
                 ui.separator();
                 ui.add_space(4.0);
 
+                state.overlay_options.details.ensure_items();
+                let sel_idx = state.selected_text_index.min(state.overlay_options.details.items.len().saturating_sub(1));
+
+                // Style & Global Scale
                 ui.horizontal(|ui| {
-                    let num_lbl = if is_vi { "Số thẻ:" } else { "Number:" };
-                    ui.label(egui::RichText::new(num_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
-                    if ui.add(egui::TextEdit::singleline(&mut state.overlay_options.details.card_number).desired_width(140.0)).changed() {
-                        inspector_changed = true;
-                    }
-
-                    let exp_lbl = if is_vi { "Hạn:" } else { "Exp:" };
-                    ui.label(egui::RichText::new(exp_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
-                    if ui.add(egui::TextEdit::singleline(&mut state.overlay_options.details.card_expiry).desired_width(55.0)).changed() {
-                        inspector_changed = true;
-                    }
-
-                    let name_lbl = if is_vi { "Chủ thẻ:" } else { "Name:" };
-                    ui.label(egui::RichText::new(name_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
-                    if ui.add(egui::TextEdit::singleline(&mut state.overlay_options.details.card_holder).desired_width(130.0)).changed() {
-                        inspector_changed = true;
-                    }
-                });
-
-                ui.add_space(3.0);
-                ui.horizontal(|ui| {
-                    let bank_lbl = if is_vi { "Ngân hàng:" } else { "Bank:" };
-                    ui.label(egui::RichText::new(bank_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
-                    if ui.add(egui::TextEdit::singleline(&mut state.overlay_options.details.card_type_or_bank).desired_width(115.0)).changed() {
-                        inspector_changed = true;
-                    }
-
-                    let style_lbl = if is_vi { "Style:" } else { "Style:" };
+                    let style_lbl = if is_vi { "Hiệu ứng chữ:" } else { "Emboss Style:" };
                     ui.label(egui::RichText::new(style_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                     egui::ComboBox::from_id_salt("inspector_details_style")
-                        .width(110.0)
+                        .width(135.0)
                         .selected_text(egui::RichText::new(state.overlay_options.details.emboss_style.display_name_lang(is_vi)).size(11.0).color(md3::ON_SURFACE))
                         .show_ui(ui, |ui| {
                             for s in [
@@ -1556,7 +1689,7 @@ pub fn draw_studio_preview(
                             }
                         });
 
-                    let scale_lbl = if is_vi { "Cỡ:" } else { "Scale:" };
+                    let scale_lbl = if is_vi { "Cỡ chữ chung:" } else { "Global Scale:" };
                     ui.label(egui::RichText::new(scale_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                     let mut sc_pct = (state.overlay_options.details.scale * 100.0).round() as i32;
                     if ui.add(egui::Slider::new(&mut sc_pct, 40..=250).suffix("%")).changed() {
@@ -1565,66 +1698,83 @@ pub fn draw_studio_preview(
                     }
                 });
 
-                ui.add_space(3.0);
-                ui.horizontal(|ui| {
-                    let num_font_lbl = if is_vi { "Font số:" } else { "Num Font:" };
-                    ui.label(egui::RichText::new(num_font_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
-                    let cur_num_font = state.overlay_options.details.number_font;
-                    egui::ComboBox::from_id_salt("inspector_num_font")
-                        .width(115.0)
-                        .selected_text(egui::RichText::new(cur_num_font.display_name_lang(is_vi)).size(10.5).color(md3::ON_SURFACE))
-                        .show_ui(ui, |ui| {
-                            for f in [
-                                CardFontPreset::ClassicOcr,
-                                CardFontPreset::ModernSans,
-                                CardFontPreset::Monospace,
-                                CardFontPreset::Custom,
-                            ] {
-                                let is_sel = cur_num_font == f;
-                                if ui.selectable_label(is_sel, f.display_name_lang(is_vi)).clicked() {
-                                    state.overlay_options.details.number_font = f;
-                                    inspector_changed = true;
-                                }
-                            }
-                        });
+                // Row 2: Selected Text Item Content & Backdrop
+                if let Some(item) = state.overlay_options.details.items.get_mut(sel_idx) {
+                    ui.add_space(3.0);
+                    ui.horizontal(|ui| {
+                        let item_badge = format!("#{}", sel_idx + 1);
+                        ui.label(egui::RichText::new(item_badge).strong().size(11.0).color(md3::PRIMARY));
 
-                    let text_font_lbl = if is_vi { "Font chữ:" } else { "Text Font:" };
-                    ui.label(egui::RichText::new(text_font_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
-                    let cur_text_font = state.overlay_options.details.text_font;
-                    egui::ComboBox::from_id_salt("inspector_text_font")
-                        .width(115.0)
-                        .selected_text(egui::RichText::new(cur_text_font.display_name_lang(is_vi)).size(10.5).color(md3::ON_SURFACE))
-                        .show_ui(ui, |ui| {
-                            for f in [
-                                CardFontPreset::ModernSans,
-                                CardFontPreset::ClassicOcr,
-                                CardFontPreset::SerifLuxury,
-                                CardFontPreset::Custom,
-                            ] {
-                                let is_sel = cur_text_font == f;
-                                if ui.selectable_label(is_sel, f.display_name_lang(is_vi)).clicked() {
-                                    state.overlay_options.details.text_font = f;
-                                    inspector_changed = true;
-                                }
-                            }
-                        });
-
-                    if let Some(name) = &state.custom_font_name {
-                        ui.label(egui::RichText::new(format!("🔤 {}", name)).size(10.5).color(md3::PRIMARY).strong());
-                        let rm_hint = if is_vi { "Gỡ font tùy chỉnh" } else { "Remove custom font" };
-                        if ui.button(egui::RichText::new("✕").size(10.0).color(md3::ERROR)).on_hover_text(rm_hint).clicked() {
-                            state.clear_custom_font();
+                        ui.label(egui::RichText::new(if is_vi { "Nhãn:" } else { "Label:" }).size(11.0).color(md3::ON_SURFACE_VARIANT));
+                        if ui.add(egui::TextEdit::singleline(&mut item.label).desired_width(100.0)).changed() {
                             inspector_changed = true;
                         }
-                    } else {
-                        let load_lbl = if is_vi { "📁 Tải Font..." } else { "📁 Upload Font..." };
-                        if ui.button(egui::RichText::new(load_lbl).size(10.5).color(md3::PRIMARY)).clicked() {
-                            if state.load_custom_font().is_ok() {
-                                inspector_changed = true;
-                            }
+
+                        ui.label(egui::RichText::new(if is_vi { "Chữ:" } else { "Text:" }).size(11.0).color(md3::ON_SURFACE_VARIANT));
+                        if ui.add(egui::TextEdit::singleline(&mut item.content).desired_width(150.0)).changed() {
+                            inspector_changed = true;
                         }
-                    }
-                });
+
+                        let case_txt = if item.is_uppercase { "HOA" } else { "thường" };
+                        if ui.button(egui::RichText::new(case_txt).size(10.5).color(md3::ON_SURFACE_VARIANT))
+                            .on_hover_text(if is_vi { "Đổi chữ IN HOA / Thường" } else { "Toggle UPPERCASE / Normal" })
+                            .clicked()
+                        {
+                            item.is_uppercase = !item.is_uppercase;
+                            inspector_changed = true;
+                        }
+
+                        if ui.checkbox(&mut item.has_backdrop, if is_vi { "🧊 Nền mờ" } else { "🧊 Backdrop" })
+                            .on_hover_text(if is_vi { "Bật/tắt hộp nền mờ bo góc riêng cho dòng chữ này" } else { "Toggle frosted pill background for this text line" })
+                            .changed()
+                        {
+                            inspector_changed = true;
+                        }
+                    });
+
+                                    // Row 3: Font, Font Size, X, Y, Letter Spacing
+                    ui.add_space(3.0);
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new(if is_vi { "Font:" } else { "Font:" }).size(11.0).color(md3::ON_SURFACE_VARIANT));
+                        egui::ComboBox::from_id_salt("inspector_item_font")
+                            .width(135.0)
+                            .selected_text(egui::RichText::new(item.font.display_name_lang(is_vi)).size(10.5).color(md3::ON_SURFACE))
+                            .show_ui(ui, |ui| {
+                                for f in [
+                                    CardFontPreset::ClassicOcr,
+                                    CardFontPreset::ModernSans,
+                                    CardFontPreset::Monospace,
+                                    CardFontPreset::SerifLuxury,
+                                    CardFontPreset::Custom,
+                                ] {
+                                    if ui.selectable_label(item.font == f, f.display_name_lang(is_vi)).clicked() {
+                                        item.font = f;
+                                        inspector_changed = true;
+                                    }
+                                }
+                            });
+
+                        ui.label(egui::RichText::new("Cỡ:").size(10.5).color(md3::ON_SURFACE_VARIANT));
+                        if ui.add(egui::DragValue::new(&mut item.font_size).range(10.0..=120.0).speed(0.5)).changed() {
+                            inspector_changed = true;
+                        }
+
+                        ui.label(egui::RichText::new("X:").size(10.5).color(md3::ON_SURFACE_VARIANT));
+                        if ui.add(egui::DragValue::new(&mut item.x).range(-100.0..=1600.0).speed(1.0)).changed() {
+                            inspector_changed = true;
+                        }
+
+                        ui.label(egui::RichText::new("Y:").size(10.5).color(md3::ON_SURFACE_VARIANT));
+                        if ui.add(egui::DragValue::new(&mut item.y).range(-50.0..=1000.0).speed(1.0)).changed() {
+                            inspector_changed = true;
+                        }
+
+                        ui.label(egui::RichText::new("Dãn:").size(10.5).color(md3::ON_SURFACE_VARIANT));
+                        if ui.add(egui::DragValue::new(&mut item.letter_spacing).range(-2.0..=20.0).speed(0.1)).changed() {
+                            inspector_changed = true;
+                        }
+                    });
+                }
             }
         });
 

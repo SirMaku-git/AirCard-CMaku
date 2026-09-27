@@ -903,6 +903,65 @@ fn render_text_subpixel(
     cur_x
 }
 
+pub fn calculate_text_bounds(
+    font: &FontArc,
+    text: &str,
+    scale_px: f32,
+    letter_spacing: f32,
+) -> (f32, f32, f32, f32) {
+    let scale = PxScale::from(scale_px);
+    let scaled = font.as_scaled(scale);
+    let ascent = scaled.ascent();
+    let descent = scaled.descent(); // negative number in ab_glyph
+    let fallback = get_fallback_font();
+
+    let mut cur_x = 0.0f32;
+    for c in text.nfc() {
+        if c == ' ' {
+            cur_x += scaled.h_advance(font.glyph_id(' ')) + letter_spacing;
+            continue;
+        }
+
+        let (active_font, gid) = if font.glyph_id(c).0 != 0 {
+            (font, font.glyph_id(c))
+        } else if let Some(fb) = fallback {
+            if fb.glyph_id(c).0 != 0 {
+                (fb, fb.glyph_id(c))
+            } else {
+                let base = strip_vietnamese_diacritic(c);
+                if font.glyph_id(base).0 != 0 {
+                    (font, font.glyph_id(base))
+                } else if fb.glyph_id(base).0 != 0 {
+                    (fb, fb.glyph_id(base))
+                } else {
+                    (font, font.glyph_id(c))
+                }
+            }
+        } else {
+            let base = strip_vietnamese_diacritic(c);
+            if font.glyph_id(base).0 != 0 {
+                (font, font.glyph_id(base))
+            } else {
+                (font, font.glyph_id(c))
+            }
+        };
+
+        let active_scaled = active_font.as_scaled(scale);
+        let advance = active_scaled.h_advance(gid);
+        cur_x += advance + letter_spacing;
+    }
+
+    let total_w = if cur_x > letter_spacing {
+        cur_x - letter_spacing
+    } else {
+        cur_x
+    }.max(scale_px * 0.4);
+
+    let total_h = (ascent - descent).max(scale_px * 0.8);
+    // top is baseline - ascent, so relative offset is -ascent
+    (0.0, -ascent, total_w, total_h)
+}
+
 fn draw_embossed_string_vector(
     img: &mut RgbaImage,
     font: &FontArc,
@@ -1000,7 +1059,7 @@ fn draw_embossed_string_vector(
     )
 }
 
-fn draw_text_backdrop(img: &mut RgbaImage, backdrop: TextBackdropStyle, vertical_offset: i32) {
+fn draw_text_backdrop(img: &mut RgbaImage, backdrop: TextBackdropStyle, vertical_offset: i32, has_items: bool) {
     match backdrop {
         TextBackdropStyle::None => {}
         TextBackdropStyle::FrostedGlassStrip => {
@@ -1020,18 +1079,21 @@ fn draw_text_backdrop(img: &mut RgbaImage, backdrop: TextBackdropStyle, vertical
             }
         }
         TextBackdropStyle::FrostedPills => {
-            let vo = vertical_offset;
-            let y_num = (575 + vo - 12).clamp(100, 850);
-            draw_rounded_rect(img, 115, y_num, 930, 80, 18.0, [15, 18, 26, 115]);
-            draw_rounded_rect_outline(img, 115, y_num, 930, 80, 18.0, 1.2, [255, 255, 255, 38]);
+            // When modular text items are active, pills are rendered dynamically per-item!
+            if !has_items {
+                let vo = vertical_offset;
+                let y_num = (575 + vo - 12).clamp(100, 850);
+                draw_rounded_rect(img, 115, y_num, 930, 80, 18.0, [15, 18, 26, 115]);
+                draw_rounded_rect_outline(img, 115, y_num, 930, 80, 18.0, 1.2, [255, 255, 255, 38]);
 
-            let y_exp = (670 + vo - 8).clamp(100, 900);
-            draw_rounded_rect(img, 520, y_exp, 320, 56, 14.0, [15, 18, 26, 115]);
-            draw_rounded_rect_outline(img, 520, y_exp, 320, 56, 14.0, 1.2, [255, 255, 255, 38]);
+                let y_exp = (670 + vo - 8).clamp(100, 900);
+                draw_rounded_rect(img, 520, y_exp, 320, 56, 14.0, [15, 18, 26, 115]);
+                draw_rounded_rect_outline(img, 520, y_exp, 320, 56, 14.0, 1.2, [255, 255, 255, 38]);
 
-            let y_name = (765 + vo - 8).clamp(100, 920);
-            draw_rounded_rect(img, 115, y_name, 650, 64, 16.0, [15, 18, 26, 115]);
-            draw_rounded_rect_outline(img, 115, y_name, 650, 64, 16.0, 1.2, [255, 255, 255, 38]);
+                let y_name = (765 + vo - 8).clamp(100, 920);
+                draw_rounded_rect(img, 115, y_name, 650, 64, 16.0, [15, 18, 26, 115]);
+                draw_rounded_rect_outline(img, 115, y_name, 650, 64, 16.0, 1.2, [255, 255, 255, 38]);
+            }
         }
     }
 }
@@ -1104,14 +1166,15 @@ pub fn draw_card_details(
     let vo = details.vertical_offset as f32;
     let ho = details.horizontal_offset as f32;
     let scale = if details.scale > 0.05 { details.scale } else { 1.0 };
+    let has_modular_items = !details.items.is_empty();
 
-    // 1. Draw text backdrop directly onto img
-    draw_text_backdrop(img, details.backdrop, details.vertical_offset);
+    // 1. Draw text backdrop directly onto img (e.g. frosted glass strip or subtle gradient)
+    draw_text_backdrop(img, details.backdrop, details.vertical_offset, has_modular_items);
 
     // 2. Render all embossed details onto an intermediate layer
     let mut details_img = RgbaImage::new(CARD_WIDTH, CARD_HEIGHT);
 
-    if !details.items.is_empty() {
+    if has_modular_items {
         for item in &details.items {
             if !item.visible || item.content.is_empty() {
                 continue;
@@ -1122,15 +1185,33 @@ pub fn draw_card_details(
             } else {
                 item.content.clone()
             };
+
+            let item_sz = item.font_size * scale;
+            let item_ls = item.letter_spacing * scale;
+
+            // Draw per-item frosted pill background if enabled on item or FrostedPills backdrop is selected
+            if item.has_backdrop || details.backdrop == TextBackdropStyle::FrostedPills {
+                let (_, offset_y, w, h) = calculate_text_bounds(&font, &text, item_sz, item_ls);
+                let pad_x = (item_sz * 0.35).clamp(12.0, 36.0);
+                let pad_y = (item_sz * 0.22).clamp(8.0, 22.0);
+                let pill_x = ((item.x + ho - pad_x) as i32).max(0);
+                let pill_y = ((item.y + vo + offset_y - pad_y) as i32).max(0);
+                let pill_w = (((w + pad_x * 2.0) as u32).min(CARD_WIDTH - pill_x as u32)) as i32;
+                let pill_h = (((h + pad_y * 2.0) as u32).min(CARD_HEIGHT - pill_y as u32)) as i32;
+                let corner_r = (pill_h as f32 * 0.35).clamp(8.0, 24.0);
+                draw_rounded_rect(&mut details_img, pill_x, pill_y, pill_w, pill_h, corner_r, [15, 18, 26, 125]);
+                draw_rounded_rect_outline(&mut details_img, pill_x, pill_y, pill_w, pill_h, corner_r, 1.2, [255, 255, 255, 40]);
+            }
+
             draw_embossed_string_vector(
                 &mut details_img,
                 &font,
                 item.x + ho,
                 item.y + vo,
                 &text,
-                item.font_size * scale,
+                item_sz,
                 details.emboss_style,
-                item.letter_spacing * scale,
+                item_ls,
             );
         }
     } else {

@@ -229,6 +229,8 @@ pub struct CardTextItem {
     pub letter_spacing: f32,
     pub is_uppercase: bool,
     pub visible: bool,
+    #[serde(default)]
+    pub has_backdrop: bool,
 }
 
 impl Default for CardTextItem {
@@ -244,6 +246,7 @@ impl Default for CardTextItem {
             letter_spacing: 1.5,
             is_uppercase: false,
             visible: true,
+            has_backdrop: false,
         }
     }
 }
@@ -290,6 +293,7 @@ impl CardDetails {
                 letter_spacing: 1.5,
                 is_uppercase: true,
                 visible: true,
+                has_backdrop: false,
             },
             CardTextItem {
                 id: 2,
@@ -302,6 +306,7 @@ impl CardDetails {
                 letter_spacing: 3.0,
                 is_uppercase: false,
                 visible: true,
+                has_backdrop: false,
             },
             CardTextItem {
                 id: 3,
@@ -314,6 +319,7 @@ impl CardDetails {
                 letter_spacing: 2.0,
                 is_uppercase: true,
                 visible: true,
+                has_backdrop: false,
             },
             CardTextItem {
                 id: 4,
@@ -326,6 +332,7 @@ impl CardDetails {
                 letter_spacing: 2.0,
                 is_uppercase: true,
                 visible: true,
+                has_backdrop: false,
             },
         ]
     }

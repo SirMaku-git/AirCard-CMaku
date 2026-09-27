@@ -11,7 +11,8 @@ anyhow = "1.0"
 base64 = "0.23"
 eframe = { version = "0.33", default-features = true }
 egui = "0.33"
-image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "bmp", "gif", "ico", "tiff"] }
+resvg = "0.45"
 unicode-normalization = "0.1"
 libloading = "0.8"
 miniz_oxide = "0.8"

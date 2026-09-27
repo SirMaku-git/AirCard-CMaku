@@ -41,8 +41,8 @@ pub struct CustomWidget {
 
 impl CustomWidget {
     pub fn from_image_path(path: PathBuf, next_id: u64, existing_count: usize) -> Result<Self, anyhow::Error> {
-        let img = image::open(&path)?;
-        let rgba = img.to_rgba8();
+        let bytes = std::fs::read(&path)?;
+        let rgba = crate::card_studio::workspace::load_image_any_format(&bytes, path.to_str())?;
         let (w, h) = rgba.dimensions();
         let file_name = path
             .file_stem()
