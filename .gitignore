@@ -1,38 +1,24 @@
 # Rust build artifacts
 target/
-Cargo.lock.backup
 *.pdb
 *.d
 *.rs.bk
 
-# Compiled binaries and libraries
+# Compiled binaries
 *.exe
 *.dll
-*.so
-*.dylib
 
-# Temporary logs, test output, and crash dumps
-*.log
-*.tmp
-*.temp
-stdout.txt
-stderr.txt
-crash.log
-test.html
-aircard-diagnostics*.log
-
-# OS and filesystem artifacts
+# OS files
 .DS_Store
 Thumbs.db
 Desktop.ini
 
-# IDE and Editor files
-.vscode/
-.idea/
+# Editor files
 *.swp
 *~
-*.sublime-project
-*.sublime-workspace
+.vscode/
+.idea/
 
-# Temporary scratch files
-scratch/
+# Logs and temp files
+*.log
+*.tmp

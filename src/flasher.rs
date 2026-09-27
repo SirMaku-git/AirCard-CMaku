@@ -10,7 +10,8 @@ use crate::airlift::{
     stage_streaming_zip,
 };
 use crate::airtraffic::sync_assets_via_airtraffic;
-use crate::device::ActiveDeviceSession;
+use crate::device::{ActiveDeviceSession, ConnectionMode};
+use crate::wallet_backup::{capture_original_card, load_original_assets};
 
 #[allow(dead_code)]
 pub const TARGET_WALLET_ASSETS: &[&str] = &[
@@ -51,6 +52,7 @@ pub fn generate_token() -> String {
 
 pub fn write_system_file<L>(
     udid: &str,
+    connection_mode: ConnectionMode,
     target_dir: &str,
     leaf_name: &str,
     payload: &[u8],
@@ -75,8 +77,9 @@ where
     ];
 
     log(&format!("Connecting AFC for {}...", leaf_name));
-    let session = ActiveDeviceSession::open(Some(udid))
+    let session = ActiveDeviceSession::open(Some(udid), connection_mode)
         .context("Failed to open device session for writing")?;
+    log(&format!("Connected over {}.", session.transport.label()));
     let afc = AfcClient::new(&session).context("Failed to open AFC connection")?;
 
     let snapshot = snapshot_books(&afc).context("Failed to snapshot Books state before staging")?;
@@ -105,7 +108,7 @@ where
         }
 
         log(&format!("Synchronizing {} with AirTraffic host daemon...", leaf_name));
-        sync_assets_via_airtraffic(udid, &assets_to_sync, &mut log)
+        sync_assets_via_airtraffic(udid, session.transport, &assets_to_sync, &mut log)
             .context("AirTraffic sync failed")?;
 
         Ok(())
@@ -127,6 +130,7 @@ where
 
 pub fn write_system_files_batch<L>(
     udid: &str,
+    connection_mode: ConnectionMode,
     target_dir: &str,
     items: &[(&str, &[u8])],
     mut log: L,
@@ -138,7 +142,14 @@ where
         return Ok(());
     }
     if items.len() == 1 {
-        return write_system_file(udid, target_dir, items[0].0, items[0].1, log);
+        return write_system_file(
+            udid,
+            connection_mode,
+            target_dir,
+            items[0].0,
+            items[0].1,
+            log,
+        );
     }
 
     log(&format!("Packaging atomic batch of {} file(s) for {}...", items.len(), target_dir));
@@ -163,8 +174,9 @@ where
     }
 
     log(&format!("Connecting AFC for batch of {} assets...", items.len()));
-    let session = ActiveDeviceSession::open(Some(udid))
+    let session = ActiveDeviceSession::open(Some(udid), connection_mode)
         .context("Failed to open device session for writing")?;
+    log(&format!("Connected over {}.", session.transport.label()));
     let afc = AfcClient::new(&session).context("Failed to open AFC connection")?;
 
     let snapshot = snapshot_books(&afc).context("Failed to snapshot Books state before staging")?;
@@ -195,7 +207,7 @@ where
 
         log(&format!("Synchronizing batch ({} items) with AirTraffic host daemon in single session...", items.len()));
         let assets_refs: Vec<(&str, &str)> = assets_to_sync.iter().map(|(a, b)| (a.as_str(), b.as_str())).collect();
-        sync_assets_via_airtraffic(udid, &assets_refs, &mut log)
+        sync_assets_via_airtraffic(udid, session.transport, &assets_refs, &mut log)
             .context("AirTraffic batch sync failed")?;
 
         Ok(())
@@ -217,6 +229,7 @@ where
 
 pub fn flash_wallet_skin<F, L>(
     udid: &str,
+    connection_mode: ConnectionMode,
     card_hash: &str,
     skin_png: &[u8],
     skin_pdf: &[u8],
@@ -227,10 +240,21 @@ where
     F: FnMut(usize, usize, &str),
     L: FnMut(&str),
 {
-    let pkpass_dir = format!("/var/mobile/Library/Passes/Cards/{}.pkpass", card_hash);
+    anyhow::ensure!(
+        crate::scanner::is_valid_card_hash(card_hash),
+        "Invalid Wallet card path identifier"
+    );
 
     log(&format!("Target Card Hash: {}", card_hash));
-    log(&format!("Skin payload size: {} bytes PNG, {} bytes PDF", skin_png.len(), skin_pdf.len()));
+    log(&format!(
+        "Skin payload size: {} bytes PNG, {} bytes PDF",
+        skin_png.len(),
+        skin_pdf.len()
+    ));
+    let resolved_hash = capture_original_card(udid, connection_mode, card_hash, &mut log)
+        .context("Failed to inspect the original Wallet card face")?
+        .unwrap_or_else(|| card_hash.to_string());
+    let pkpass_dir = format!("/var/mobile/Library/Passes/Cards/{}.pkpass", resolved_hash);
 
     let total_steps = 3;
     progress(1, total_steps, "Writing card artwork assets (@3x, @2x, .pdf)...");
@@ -242,14 +266,106 @@ where
         ("cardBackgroundCombined.pdf", skin_pdf),
     ];
 
-    if let Err(err) = write_system_files_batch(udid, &pkpass_dir, &card_assets, &mut log) {
+    if let Err(err) = write_system_files_batch(
+        udid,
+        connection_mode,
+        &pkpass_dir,
+        &card_assets,
+        &mut log,
+    ) {
         log(&format!("Notice: Batch write failed ({}), trying individual asset writes...", err));
         for (asset, data) in &card_assets {
-            write_system_file(udid, &pkpass_dir, asset, data, &mut log)
+            write_system_file(udid, connection_mode, &pkpass_dir, asset, data, &mut log)
                 .context(format!("Failed to write card asset {}", asset))?;
         }
     }
 
+    invalidate_wallet_caches(
+        udid,
+        connection_mode,
+        resolved_hash.as_str(),
+        &mut progress,
+        &mut log,
+    );
+
+    progress(total_steps, total_steps, "Card skin updated successfully!");
+    log("Card skin write finished! Close and reopen Wallet on iPhone to view.");
+    Ok(())
+}
+
+pub fn restore_wallet_original<F, L>(
+    udid: &str,
+    connection_mode: ConnectionMode,
+    card_hash: &str,
+    mut progress: F,
+    mut log: L,
+) -> Result<()>
+where
+    F: FnMut(usize, usize, &str),
+    L: FnMut(&str),
+{
+    let original_assets = load_original_assets(udid, card_hash)
+        .context("Could not load the original Wallet card face backup")?;
+    let asset_refs: Vec<(&str, &[u8])> = original_assets
+        .iter()
+        .map(|(asset, data)| (asset.as_str(), data.as_slice()))
+        .collect();
+
+    log(&format!(
+        "Restoring {} original card artwork asset(s) for hash {}...",
+        asset_refs.len(),
+        card_hash
+    ));
+    progress(1, 3, "Restoring original card artwork...");
+
+    let pkpass_dir = format!("/var/mobile/Library/Passes/Cards/{}.pkpass", card_hash);
+    if let Err(err) = write_system_files_batch(
+        udid,
+        connection_mode,
+        &pkpass_dir,
+        &asset_refs,
+        &mut log,
+    ) {
+        log(&format!(
+            "Notice: Restore batch write failed ({}), trying individual asset writes...",
+            err
+        ));
+        for (asset, data) in &original_assets {
+            write_system_file(
+                udid,
+                connection_mode,
+                &pkpass_dir,
+                asset,
+                data,
+                &mut log,
+            )
+            .context(format!("Failed to restore original card asset {}", asset))?;
+        }
+    }
+
+    invalidate_wallet_caches(
+        udid,
+        connection_mode,
+        card_hash,
+        &mut progress,
+        &mut log,
+    );
+
+    progress(3, 3, "Original card face restored successfully!");
+    log("Original card face restored. Close and reopen Wallet on iPhone to view it.");
+    Ok(())
+}
+
+fn invalidate_wallet_caches<F, L>(
+    udid: &str,
+    connection_mode: ConnectionMode,
+    card_hash: &str,
+    progress: &mut F,
+    log: &mut L,
+) where
+    F: FnMut(usize, usize, &str),
+    L: FnMut(&str),
+{
     let cache_leaves: [(&str, &[u8]); 3] = [
         ("FrontFace", b"corrupted"),
         ("PlaceHolder", b"corrupted"),
@@ -259,23 +375,38 @@ where
     for (c_idx, ext) in [".cache", ".pkcache"].iter().enumerate() {
         let step = 2 + c_idx;
         let cache_dir = format!("/var/mobile/Library/Passes/Cards/{}{}", card_hash, ext);
-        progress(step, total_steps, &format!("Clearing {} cache...", ext));
-        log(&format!("[{}/{}] Invalidating cache leaves in {}...", step, total_steps, cache_dir));
+        progress(step, 3, &format!("Clearing {} cache...", ext));
+        log(&format!(
+            "[{}/3] Invalidating cache leaves in {}...",
+            step, cache_dir
+        ));
 
-        if let Err(_) = write_system_files_batch(udid, &cache_dir, &cache_leaves, &mut log) {
+        if write_system_files_batch(
+            udid,
+            connection_mode,
+            &cache_dir,
+            &cache_leaves,
+            &mut *log,
+        )
+        .is_err()
+        {
             for (leaf, data) in &cache_leaves {
-                let _ = write_system_file(udid, &cache_dir, leaf, data, &mut log);
+                let _ = write_system_file(
+                    udid,
+                    connection_mode,
+                    &cache_dir,
+                    leaf,
+                    data,
+                    &mut *log,
+                );
             }
         }
     }
-
-    progress(total_steps, total_steps, "Card skin updated successfully!");
-    log("Card skin write finished! Close and reopen Wallet on iPhone to view.");
-    Ok(())
 }
 
 pub fn flash_passcode_theme<F, L>(
     udid: &str,
+    connection_mode: ConnectionMode,
     items: &[(String, String, Vec<u8>)],
     mut progress: F,
     mut log: L,
@@ -309,7 +440,13 @@ where
         );
         log(&format!("Flashing batch of {} assets into {}...", dir_items.len(), tdir_name));
 
-        let batch_res = write_system_files_batch(udid, target_dir, dir_items, &mut log);
+        let batch_res = write_system_files_batch(
+            udid,
+            connection_mode,
+            target_dir,
+            dir_items,
+            &mut log,
+        );
         if let Err(err) = batch_res {
             log(&format!("Warning: Batch write failed ({}), falling back to file-by-file write...", err));
             for (f_idx, (leaf, payload)) in dir_items.iter().enumerate() {
@@ -318,7 +455,14 @@ where
                     dir_items.len(),
                     &format!("Fallback [{}/{}]: writing {}...", f_idx + 1, dir_items.len(), leaf),
                 );
-                write_system_file(udid, target_dir, leaf, payload, &mut log)
+                write_system_file(
+                    udid,
+                    connection_mode,
+                    target_dir,
+                    leaf,
+                    payload,
+                    &mut log,
+                )
                     .context(format!("Failed to write button asset {}", leaf))?;
             }
         }

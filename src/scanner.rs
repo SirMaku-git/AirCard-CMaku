@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use anyhow::{Context, Result};
 use regex::Regex;
 
-use crate::device::ActiveDeviceSession;
+use crate::device::{ActiveDeviceSession, ConnectionMode};
 
 #[cfg(windows)]
 unsafe extern "system" {
@@ -249,6 +249,7 @@ pub fn extract_card_hash_from_line(line: &str) -> Option<String> {
 
 pub fn scan_syslog_for_cards<F, L>(
     udid: Option<&str>,
+    connection_mode: ConnectionMode,
     stop_flag: Arc<AtomicBool>,
     mut on_card_found: F,
     mut log: L,
@@ -258,8 +259,13 @@ where
     L: FnMut(String),
 {
     log("Connecting to device session for syslog monitoring...".to_string());
-    let session = ActiveDeviceSession::open(udid)
+    let session = ActiveDeviceSession::open(udid, connection_mode)
         .context("Failed to connect to device for syslog scanning")?;
+    log(format!(
+        "Connected to {} over {}.",
+        session.udid,
+        session.transport.label()
+    ));
     let libs = &session.libs;
     log("Starting com.apple.syslog_relay service on device...".to_string());
     let service_conn = session.start_service("com.apple.syslog_relay")
@@ -411,7 +417,7 @@ mod tests {
 
     #[test]
     fn test_syslog_service_receive() {
-        let session = match ActiveDeviceSession::open(None) {
+        let session = match ActiveDeviceSession::open(None, ConnectionMode::Auto) {
             Ok(s) => s,
             Err(e) => {
                 println!("No device connected: {:?}", e);

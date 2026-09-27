@@ -1,4 +1,4 @@
-use eframe::egui;
+﻿use eframe::egui;
 use crate::app::md3;
 use crate::card_studio::types::*;
 use crate::card_studio::CardStudioState;
@@ -160,10 +160,6 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
             .show_ui(ui, |ui| {
                 for net in [
                     PaymentNetwork::None,
-                    PaymentNetwork::Visa,
-                    PaymentNetwork::Mastercard,
-                    PaymentNetwork::Napas,
-                    PaymentNetwork::Jcb,
                     PaymentNetwork::Custom,
                 ] {
                     let is_sel = cur_net == net;
@@ -590,7 +586,7 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
     // Section 5: Custom Widgets
     ui.add_space(4.0);
     egui::Frame::NONE
-        .fill(md3::SURFACE_CONTAINER_LOW)
+        .fill(md3::SURFACE_CONTAINER)
         .corner_radius(8.0)
         .inner_margin(egui::Margin::symmetric(10, 8))
         .stroke(egui::Stroke::new(1.0_f32, md3::OUTLINE_VARIANT))

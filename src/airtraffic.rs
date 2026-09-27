@@ -5,6 +5,7 @@ use std::time::Duration;
 use anyhow::{Context, Result, bail};
 
 use crate::apple::{ATHostConnectionRef, get_apple_libraries};
+use crate::device::{DeviceTransport, ensure_transport_available};
 
 #[link(name = "bcrypt")]
 unsafe extern "system" {
@@ -38,7 +39,12 @@ pub enum SyncEvent {
     Done(Result<()>),
 }
 
-pub fn sync_assets_via_airtraffic<L>(udid: &str, assets: &[(&str, &str)], mut log: L) -> Result<()>
+pub fn sync_assets_via_airtraffic<L>(
+    udid: &str,
+    transport: DeviceTransport,
+    assets: &[(&str, &str)],
+    mut log: L,
+) -> Result<()>
 where
     L: FnMut(&str),
 {
@@ -55,13 +61,18 @@ where
             .map(|(a, b)| (a.as_str(), b.as_str()))
             .collect();
         let tx_log = tx.clone();
-        let res = sync_assets_via_airtraffic_internal(&udid_owned, &refs, move |msg| {
+        let res = sync_assets_via_airtraffic_internal(&udid_owned, transport, &refs, move |msg| {
             let _ = tx_log.send(SyncEvent::Log(msg.to_string()));
         });
         let _ = tx.send(SyncEvent::Done(res));
     });
 
-    let total_timeout_secs = 60.max(assets.len() as u64 * 2);
+    let base_timeout_secs = if transport == DeviceTransport::Wifi {
+        120
+    } else {
+        60
+    };
+    let total_timeout_secs = base_timeout_secs.max(assets.len() as u64 * 2);
     let start = std::time::Instant::now();
     loop {
         let elapsed = start.elapsed();
@@ -79,11 +90,21 @@ where
     }
 }
 
-fn sync_assets_via_airtraffic_internal<L>(udid: &str, assets: &[(&str, &str)], mut log: L) -> Result<()>
+fn sync_assets_via_airtraffic_internal<L>(
+    udid: &str,
+    transport: DeviceTransport,
+    assets: &[(&str, &str)],
+    mut log: L,
+) -> Result<()>
 where
     L: FnMut(&str),
 {
-    log("Connecting to iOS AirTraffic service (com.apple.atc)...");
+    ensure_transport_available(udid, transport)
+        .context("Selected device transport disappeared before AirTraffic sync")?;
+    log(&format!(
+        "Connecting to iOS AirTraffic service (com.apple.atc) over {}...",
+        transport.label()
+    ));
     let libs = get_apple_libraries()?;
     let cf_udid = libs.create_cf_string(udid)?;
 
@@ -92,11 +113,12 @@ where
         bail!("ATHostConnectionCreate failed for UDID: {}", udid);
     }
 
+    let retry_scale = if transport == DeviceTransport::Wifi { 2 } else { 1 };
     let mut run_sync = || -> Result<()> {
         log("Waiting for SyncAllowed from iPhone (keep screen unlocked)...");
         // 1. Wait for SyncAllowed message
         let mut sync_allowed = false;
-        for _ in 0..15 {
+        for _ in 0..(15 * retry_scale) {
             let msg = unsafe { (libs.at_host_connection_read_message)(conn) };
             if msg.is_null() {
                 sleep(Duration::from_millis(150));
@@ -158,7 +180,7 @@ where
         log("Waiting for ReadyForSync from iPhone...");
         // 4. Wait for ReadyForSync
         let mut ready_for_sync = false;
-        for _ in 0..20 {
+        for _ in 0..(20 * retry_scale) {
             let msg = unsafe { (libs.at_host_connection_read_message)(conn) };
             if msg.is_null() {
                 sleep(Duration::from_millis(150));
@@ -191,7 +213,7 @@ where
         let cf_key_manifest = libs.create_cf_string("AssetManifest")?;
         let mut manifest_val: Option<plist::Value> = None;
 
-        for _ in 0..30 {
+        for _ in 0..(30 * retry_scale) {
             let msg = unsafe { (libs.at_host_connection_read_message)(conn) };
             if msg.is_null() {
                 sleep(Duration::from_millis(150));

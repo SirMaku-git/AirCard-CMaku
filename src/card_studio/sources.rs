@@ -42,6 +42,25 @@ pub fn draw_sources_tab(ui: &mut egui::Ui, is_vi: bool) {
                 );
             });
 
+            ui.add_space(8.0);
+            // Star Campaign Call-To-Action Banner
+            egui::Frame::new()
+                .fill(md3::SURFACE_CONTAINER_HIGH)
+                .corner_radius(10)
+                .inner_margin(egui::Margin::symmetric(12, 8))
+                .stroke(egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(255, 193, 7)))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("⭐").size(13.0));
+                        let star_txt = if is_vi {
+                            "Hãy ghé thăm và bấm STAR ⭐ ủng hộ tác giả gốc Lumid-Off trên GitHub!"
+                        } else {
+                            "Please visit and give a STAR ⭐ to support Lumid-Off's original repository!"
+                        };
+                        ui.label(egui::RichText::new(star_txt).strong().size(11.0).color(egui::Color32::from_rgb(255, 215, 64)));
+                    });
+                });
+
             ui.add_space(14.0);
 
             // Customizer / Modder

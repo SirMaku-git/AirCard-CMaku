@@ -2,6 +2,7 @@ use anyhow::Result;
 use eframe::egui;
 use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
 use ab_glyph::{Font, FontArc, PxScale, ScaleFont, point};
+use unicode_normalization::UnicodeNormalization;
 
 use crate::card_studio::types::{
     CardBackgroundPreset, CardDetails, CardFinish, CardFontPreset, CardOverlayOptions, ImageTransform,
@@ -13,10 +14,7 @@ use crate::card_studio::widget::CustomWidgetData;
 // ---------------------------------------------------------------------------
 // Authentic Anti-Aliased Card Assets (Embedded via include_bytes!)
 // ---------------------------------------------------------------------------
-const ASSET_VISA: &[u8] = include_bytes!("../assets/visa.png");
-const ASSET_MASTERCARD: &[u8] = include_bytes!("../assets/mastercard.png");
-const ASSET_NAPAS: &[u8] = include_bytes!("../assets/napas.png");
-const ASSET_JCB: &[u8] = include_bytes!("../assets/jcb.png");
+
 const ASSET_EMV_CHIP: &[u8] = include_bytes!("../assets/emv_chip.png");
 const ASSET_CONTACTLESS: &[u8] = include_bytes!("../assets/contactless.png");
 const ASSET_CARD_OCR: &[u8] = include_bytes!("../assets/card_ocr.ttf");
@@ -698,10 +696,6 @@ pub fn draw_payment_network(
 
     let maybe_logo_img = match network {
         PaymentNetwork::None => None,
-        PaymentNetwork::Visa => image::load_from_memory(ASSET_VISA).ok().map(|d| d.to_rgba8()),
-        PaymentNetwork::Mastercard => image::load_from_memory(ASSET_MASTERCARD).ok().map(|d| d.to_rgba8()),
-        PaymentNetwork::Napas => image::load_from_memory(ASSET_NAPAS).ok().map(|d| d.to_rgba8()),
-        PaymentNetwork::Jcb => image::load_from_memory(ASSET_JCB).ok().map(|d| d.to_rgba8()),
         PaymentNetwork::Custom => custom_logo.cloned(),
     };
 
@@ -769,6 +763,45 @@ pub fn draw_logo_badge_frame(
     }
 }
 
+fn get_fallback_font() -> Option<&'static FontArc> {
+    static FALLBACK: std::sync::OnceLock<Option<FontArc>> = std::sync::OnceLock::new();
+    FALLBACK
+        .get_or_init(|| {
+            let windows_dir = std::env::var_os("WINDIR")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| std::path::PathBuf::from(r"C:\Windows"));
+            for font_name in ["segoeui.ttf", "arial.ttf", "tahoma.ttf"] {
+                if let Ok(bytes) = std::fs::read(windows_dir.join("Fonts").join(font_name)) {
+                    if let Ok(font) = FontArc::try_from_vec(bytes) {
+                        return Some(font);
+                    }
+                }
+            }
+            None
+        })
+        .as_ref()
+}
+
+fn strip_vietnamese_diacritic(c: char) -> char {
+    match c {
+        'à' | 'á' | 'ả' | 'ã' | 'ạ' | 'ă' | 'ằ' | 'ắ' | 'ẳ' | 'ẵ' | 'ặ' | 'â' | 'ầ' | 'ấ' | 'ẩ' | 'ẫ' | 'ậ' => 'a',
+        'À' | 'Á' | 'Ả' | 'Ã' | 'Ạ' | 'Ă' | 'Ằ' | 'Ắ' | 'Ẳ' | 'Ẵ' | 'Ặ' | 'Â' | 'Ầ' | 'Ấ' | 'Ẩ' | 'Ẫ' | 'Ậ' => 'A',
+        'è' | 'é' | 'ẻ' | 'ẽ' | 'ẹ' | 'ê' | 'ề' | 'ế' | 'ể' | 'ễ' | 'ệ' => 'e',
+        'È' | 'É' | 'Ẻ' | 'Ẽ' | 'Ẹ' | 'Ê' | 'Ề' | 'Ế' | 'Ể' | 'Ễ' | 'Ệ' => 'E',
+        'ì' | 'í' | 'ỉ' | 'ĩ' | 'ị' => 'i',
+        'Ì' | 'Í' | 'Ỉ' | 'Ĩ' | 'Ị' => 'I',
+        'ò' | 'ó' | 'ỏ' | 'õ' | 'ọ' | 'ô' | 'ồ' | 'ố' | 'ổ' | 'ỗ' | 'ộ' | 'ơ' | 'ờ' | 'ớ' | 'ở' | 'ỡ' | 'ợ' => 'o',
+        'Ò' | 'Ó' | 'Ỏ' | 'Õ' | 'Ọ' | 'Ô' | 'Ồ' | 'Ố' | 'Ổ' | 'Ỗ' | 'Ộ' | 'Ơ' | 'Ờ' | 'Ớ' | 'Ở' | 'Ỡ' | 'Ợ' => 'O',
+        'ù' | 'ú' | 'ủ' | 'ũ' | 'ụ' | 'ư' | 'ừ' | 'ứ' | 'ử' | 'ữ' | 'ự' => 'u',
+        'Ù' | 'Ú' | 'Ủ' | 'Ũ' | 'Ụ' | 'Ư' | 'Ừ' | 'Ứ' | 'Ử' | 'Ữ' | 'Ự' => 'U',
+        'ỳ' | 'ý' | 'ỷ' | 'ỹ' | 'ỵ' => 'y',
+        'Ỳ' | 'Ý' | 'Ỷ' | 'Ỹ' | 'Ỵ' => 'Y',
+        'đ' => 'd',
+        'Đ' => 'D',
+        other => other,
+    }
+}
+
 fn render_text_subpixel(
     img: &mut RgbaImage,
     font: &FontArc,
@@ -782,16 +815,42 @@ fn render_text_subpixel(
     let scale = PxScale::from(scale_px);
     let scaled = font.as_scaled(scale);
     let mut cur_x = start_x;
+    let fallback = get_fallback_font();
 
-    for c in text.chars() {
+    for c in text.nfc() {
         if c == ' ' {
             cur_x += scaled.h_advance(font.glyph_id(' ')) + letter_spacing;
             continue;
         }
-        let id = font.glyph_id(c);
-        let advance = scaled.h_advance(id);
-        let glyph = id.with_scale_and_position(scale, point(cur_x, start_y));
-        if let Some(outlined) = font.outline_glyph(glyph) {
+
+        let (active_font, gid) = if font.glyph_id(c).0 != 0 {
+            (font, font.glyph_id(c))
+        } else if let Some(fb) = fallback {
+            if fb.glyph_id(c).0 != 0 {
+                (fb, fb.glyph_id(c))
+            } else {
+                let base = strip_vietnamese_diacritic(c);
+                if font.glyph_id(base).0 != 0 {
+                    (font, font.glyph_id(base))
+                } else if fb.glyph_id(base).0 != 0 {
+                    (fb, fb.glyph_id(base))
+                } else {
+                    (font, font.glyph_id(c))
+                }
+            }
+        } else {
+            let base = strip_vietnamese_diacritic(c);
+            if font.glyph_id(base).0 != 0 {
+                (font, font.glyph_id(base))
+            } else {
+                (font, font.glyph_id(c))
+            }
+        };
+
+        let active_scaled = active_font.as_scaled(scale);
+        let advance = active_scaled.h_advance(gid);
+        let glyph = gid.with_scale_and_position(scale, point(cur_x, start_y));
+        if let Some(outlined) = active_font.outline_glyph(glyph) {
             let bounds = outlined.px_bounds();
             outlined.draw(|gx, gy, cov| {
                 if cov > 0.01 {
@@ -1361,4 +1420,49 @@ pub fn render_preview_canvas(
     );
 
     Ok((rgba, preview))
+}
+
+pub fn encode_skin_png_and_pdf(rgba: &RgbaImage) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
+    use anyhow::Context;
+    let mut png = Vec::new();
+    image::DynamicImage::ImageRgba8(rgba.clone())
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .context("Could not encode prepared PNG")?;
+
+    let pdf = crate::image_skin::png_to_pdf(&png).context("Could not generate card PDF artwork")?;
+
+    Ok((png, pdf))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_vietnamese_diacritic_stripping() {
+        assert_eq!(strip_vietnamese_diacritic('Đ'), 'D');
+        assert_eq!(strip_vietnamese_diacritic('đ'), 'd');
+        assert_eq!(strip_vietnamese_diacritic('ễ'), 'e');
+        assert_eq!(strip_vietnamese_diacritic('Ă'), 'A');
+        assert_eq!(strip_vietnamese_diacritic('ớ'), 'o');
+        assert_eq!(strip_vietnamese_diacritic('Ự'), 'U');
+    }
+
+    #[test]
+    fn test_render_vietnamese_cardholder_name() {
+        let mut img = RgbaImage::new(CARD_WIDTH, CARD_HEIGHT);
+        let font = resolve_font(CardFontPreset::ClassicOcr, None, false);
+        let cur_x = render_text_subpixel(
+            &mut img,
+            &font,
+            "NGUYỄN VĂN A",
+            100.0,
+            100.0,
+            40.0,
+            [255, 255, 255, 255],
+            2.0,
+        );
+        // cur_x must have advanced across all characters
+        assert!(cur_x > 300.0);
+    }
 }

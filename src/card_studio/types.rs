@@ -1,4 +1,4 @@
-pub const CARD_WIDTH: u32 = 1_536;
+﻿pub const CARD_WIDTH: u32 = 1_536;
 pub const CARD_HEIGHT: u32 = 969;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
@@ -264,10 +264,6 @@ impl Default for CardDetails {
 pub enum PaymentNetwork {
     #[default]
     None,
-    Visa,
-    Mastercard,
-    Napas,
-    Jcb,
     Custom,
 }
 
@@ -275,11 +271,7 @@ impl PaymentNetwork {
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::None => "None",
-            Self::Visa => "Visa",
-            Self::Mastercard => "Mastercard",
-            Self::Napas => "Napas",
-            Self::Jcb => "JCB",
-            Self::Custom => "Custom Logo (Uploaded)",
+            Self::Custom => "Custom Badge / Logo (Upload)",
         }
     }
 
@@ -287,11 +279,7 @@ impl PaymentNetwork {
         if !is_vi { return self.display_name(); }
         match self {
             Self::None => "Không",
-            Self::Visa => "Visa",
-            Self::Mastercard => "Mastercard",
-            Self::Napas => "Napas",
-            Self::Jcb => "JCB",
-            Self::Custom => "Logo riêng (Upload)",
+            Self::Custom => "Huy hiệu / Logo riêng (Upload)",
         }
     }
 }
@@ -409,7 +397,7 @@ impl Default for CardOverlayOptions {
     fn default() -> Self {
         Self {
             bg_preset: CardBackgroundPreset::CustomImage,
-            network: PaymentNetwork::Visa,
+            network: PaymentNetwork::None,
             logo_style: LogoBadgeStyle::Transparent,
             logo_color: LogoColorTheme::Original,
             show_chip: false,
