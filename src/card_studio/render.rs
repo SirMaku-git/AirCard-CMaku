@@ -618,14 +618,30 @@ pub fn draw_emv_chip(
     chip_scale: f32,
     chip_adj: &LayerAdjustments,
 ) {
-    let base_w = 205.0f32;
-    let base_h = 155.0f32;
+    let scale = chip_scale.clamp(0.2, 5.0);
+    let bw = 205.0 * scale;
+    let bh = 155.0 * scale;
+    let center_x = chip_x + bw * 0.5;
+    let center_y = chip_y + bh * 0.5;
     if let Some(chip) = custom_chip {
+        let cw = chip.width() as f32;
+        let ch = chip.height() as f32;
+        let (base_w, base_h) = if cw > 0.0 && ch > 0.0 {
+            let aspect = cw / ch;
+            let target_aspect = 205.0 / 155.0;
+            if aspect > target_aspect {
+                (205.0, 205.0 / aspect)
+            } else {
+                (155.0 * aspect, 155.0)
+            }
+        } else {
+            (205.0, 155.0)
+        };
         render_transformed_asset(
             img,
             chip,
-            chip_x,
-            chip_y,
+            center_x,
+            center_y,
             chip_scale,
             base_w,
             base_h,
@@ -638,11 +654,11 @@ pub fn draw_emv_chip(
         render_transformed_asset(
             img,
             &chip,
-            chip_x,
-            chip_y,
+            center_x,
+            center_y,
             chip_scale,
-            base_w,
-            base_h,
+            205.0,
+            155.0,
             chip_adj,
             LogoColorTheme::Original,
             true,
@@ -657,13 +673,16 @@ pub fn draw_contactless_wave(
     wave_scale: f32,
     wave_adj: &LayerAdjustments,
 ) {
+    let scale = wave_scale.clamp(0.2, 5.0);
+    let center_x = wave_x + (75.0 * scale) * 0.5;
+    let center_y = wave_y + (95.0 * scale) * 0.5;
     if let Ok(dyn_img) = image::load_from_memory(ASSET_CONTACTLESS) {
         let wave = dyn_img.to_rgba8();
         render_transformed_asset(
             img,
             &wave,
-            wave_x,
-            wave_y,
+            center_x,
+            center_y,
             wave_scale,
             75.0,
             95.0,
@@ -686,13 +705,13 @@ pub fn draw_payment_network(
     logo_adj: &LayerAdjustments,
 ) {
     let scale = logo_scale.clamp(0.2, 5.0);
-    let bw = (245.0 * scale).round() as i32;
-    let bh = (94.0 * scale).round() as i32;
+    let bw = 245.0 * scale;
+    let bh = 94.0 * scale;
     let bx0 = logo_x.round() as i32;
     let by0 = logo_y.round() as i32;
     let radius = (18.0 * scale).max(4.0);
 
-    draw_logo_badge_frame(img, bx0, by0, bw, bh, radius, badge_style);
+    draw_logo_badge_frame(img, bx0, by0, bw.round() as i32, bh.round() as i32, radius, badge_style);
 
     let maybe_logo_img = match network {
         PaymentNetwork::None => None,
@@ -701,14 +720,32 @@ pub fn draw_payment_network(
 
     if let Some(logo) = maybe_logo_img {
         let has_shadow = badge_style == LogoBadgeStyle::Transparent || badge_style == LogoBadgeStyle::ThinOutline;
+        let center_x = logo_x + bw * 0.5;
+        let center_y = logo_y + bh * 0.5;
+
+        // Preserve aspect ratio of uploaded custom logo within base 245x94 frame
+        let lw = logo.width() as f32;
+        let lh = logo.height() as f32;
+        let (base_w, base_h) = if lw > 0.0 && lh > 0.0 {
+            let aspect = lw / lh;
+            let target_aspect = 245.0 / 94.0;
+            if aspect > target_aspect {
+                (245.0, 245.0 / aspect)
+            } else {
+                (94.0 * aspect, 94.0)
+            }
+        } else {
+            (245.0, 94.0)
+        };
+
         render_transformed_asset(
             img,
             &logo,
-            logo_x,
-            logo_y,
+            center_x,
+            center_y,
             logo_scale,
-            245.0,
-            94.0,
+            base_w,
+            base_h,
             logo_adj,
             color_theme,
             has_shadow,
