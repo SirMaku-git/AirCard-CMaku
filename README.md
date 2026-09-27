@@ -1,4 +1,4 @@
-# AirCard-CMaku (Windows Edition) 🎴
+# AirCard-CMaku (Windows Edition) v1.2.2-3 🎴
 
 > **Apple Wallet Card Skinner, Passcode Themer & Decoupled Card Studio for iOS 18+ (No Jailbreak Required)**  
 > Native Windows client written in Rust. Powered by the upstream `airlift` engine by **[@Lumid-Off](https://github.com/Lumid-Off/AirCard-Windows)**.
@@ -32,7 +32,7 @@
 - 🔒 **Passcode Dialer Themer (.passthm):**
   - Nạp theme bàn phím số màn hình khóa từ Cowabunga & Nugget cho iOS 18+ (`TelephonyUI-10`), iOS 16-17 (`TelephonyUI-9`), và iOS cũ.
 - ⚡ **100% Native & Lightweight:**
-  - File chạy đơn nhất `aircard-cmaku.exe` (~8.7 MB), tối ưu LTO, không cần Python hay runtime cồng kềnh.
+  - File chạy đơn nhất `aircard-cmaku.exe` (~8.8 MB), tối ưu LTO, không cần Python hay runtime cồng kềnh.
 
 ---
 
@@ -54,11 +54,20 @@ Tất cả các tính năng mở rộng của Card Studio, hệ thống font ti�
 
 ---
 
-## 📋 Yêu Cầu Hệ Thống (Requirements)
+## 📋 Yêu Cầu Hệ Thống & Cài Đặt Driver (Requirements & Setup)
 - **Windows 10 / 11 (64-bit)**
 - **Apple Mobile Device Support / iTunes 64-bit** (bắt buộc để giao tiếp với thiết bị iOS).
 - Cáp USB Lightning hoặc USB-C cho lần kết nối và bấm "Tin cậy" đầu tiên.
 - Chế độ WiFi yêu cầu PC và iPhone kết nối chung mạng WiFi nội bộ và đã bật "Sync with this iPhone over Wi-Fi" trong iTunes / Apple Devices.
+
+> [!TIP]
+> **Kinh nghiệm cài đặt driver & iTunes chuẩn từ đợt test thực tế (Khuyên dùng):**  
+> Nếu máy tính chưa nhận diện được iPhone hoặc báo thiếu Apple Mobile Device Support / iTunes runtime:
+> 1. Tải và cài đặt công cụ **[3uTools](https://www.3u.com/)**.
+> 2. Mở 3uTools, chuyển sang mục **Toolbox ➔ iTunes Utility**.
+> 3. Sử dụng tính năng tại đây để tải và cài đặt tự động toàn bộ **Driver và iTunes** (hoặc dùng **Repair Driver** nếu bị xung đột).
+> 4. Sau khi cài xong, cắm lại iPhone, mở khóa và nhấn **"Tin cậy máy tính này" (Trust this Computer)**.
+> 5. Khởi chạy lại **AirCard-CMaku**, thiết bị sẽ lập tức chuyển sang trạng thái sẵn sàng (Ready)!
 
 ---
 

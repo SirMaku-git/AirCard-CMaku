@@ -162,7 +162,7 @@ impl AirCardApp {
             show_logs_window: false,
         };
 
-        app.add_log("AirCard Windows v1.2.1 initialized");
+        app.add_log(format!("AirCard-CMaku v{} initialized", env!("CARGO_PKG_VERSION")));
         app.add_log(format!("Apple Support Runtime: {}", if app.apple_ready { "Loaded and operational" } else { "Not found (iTunes required)" }));
         app.add_log(format!("Loaded {} saved card(s) from database", app.saved_cards.len()));
 
@@ -1120,13 +1120,13 @@ impl eframe::App for AirCardApp {
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(
-                        egui::RichText::new("AirCard")
+                        egui::RichText::new("AirCard-CMaku")
                             .strong()
                             .size(18.0)
                             .color(md3::ON_SURFACE),
                     );
                     ui.label(
-                        egui::RichText::new("v1.2.2")
+                        egui::RichText::new(concat!("v", env!("CARGO_PKG_VERSION")))
                             .size(11.0)
                             .color(md3::ON_SURFACE_VARIANT),
                     );
@@ -1808,6 +1808,7 @@ impl AirCardApp {
                 ui.label(egui::RichText::new(language.text("Prerequisites")).strong().size(12.0).color(md3::ON_SURFACE));
                 ui.add_space(6.0);
                 ui.label(egui::RichText::new(language.text("- 64-bit iTunes or Apple Mobile Device Support installed")).size(11.5).color(md3::ON_SURFACE_VARIANT));
+                ui.label(egui::RichText::new(language.text("- Tip: 3uTools -> Toolbox -> iTunes Utility to install Driver & iTunes")).size(11.5).color(md3::PRIMARY));
                 ui.label(egui::RichText::new(language.text("- First-time setup: connect by USB and tap \"Trust this Computer\"")).size(11.5).color(md3::ON_SURFACE_VARIANT));
                 ui.label(egui::RichText::new(language.text("- WiFi: enable WiFi sync, then use the same local network")).size(11.5).color(md3::ON_SURFACE_VARIANT));
                 ui.label(egui::RichText::new(language.text("- Select Auto, USB only, or WiFi only in the top bar")).size(11.5).color(md3::ON_SURFACE_VARIANT));
