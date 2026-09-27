@@ -18,10 +18,13 @@ pub struct CardStudioState {
     pub active_layer: ActiveTransformLayer,
     pub custom_logo_image: Option<RgbaImage>,
     pub custom_logo_path: Option<PathBuf>,
+    pub custom_logo_raw: Option<(Vec<u8>, String)>,
     pub custom_chip_image: Option<RgbaImage>,
     pub custom_chip_path: Option<PathBuf>,
+    pub custom_chip_raw: Option<(Vec<u8>, String)>,
     pub custom_finish_image: Option<RgbaImage>,
     pub custom_finish_path: Option<PathBuf>,
+    pub custom_finish_raw: Option<(Vec<u8>, String)>,
     pub custom_font_bytes: Option<Vec<u8>>,
     pub custom_font_path: Option<PathBuf>,
     pub custom_font_name: Option<String>,
@@ -44,10 +47,13 @@ impl CardStudioState {
             active_layer: ActiveTransformLayer::Background,
             custom_logo_image: None,
             custom_logo_path: None,
+            custom_logo_raw: None,
             custom_chip_image: None,
             custom_chip_path: None,
+            custom_chip_raw: None,
             custom_finish_image: None,
             custom_finish_path: None,
+            custom_finish_raw: None,
             custom_font_bytes: None,
             custom_font_path: None,
             custom_font_name: None,
@@ -62,10 +68,13 @@ impl CardStudioState {
         self.overlay_options = CardOverlayOptions::default();
         self.custom_logo_image = None;
         self.custom_logo_path = None;
+        self.custom_logo_raw = None;
         self.custom_chip_image = None;
         self.custom_chip_path = None;
+        self.custom_chip_raw = None;
         self.custom_finish_image = None;
         self.custom_finish_path = None;
+        self.custom_finish_raw = None;
         self.custom_font_bytes = None;
         self.custom_font_path = None;
         self.custom_font_name = None;
@@ -163,8 +172,10 @@ impl CardStudioState {
         match std::fs::read(&path) {
             Ok(bytes) => match crate::card_studio::workspace::load_image_any_format(&bytes, path.to_str()) {
                 Ok(rgba) => {
+                    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("png").to_lowercase();
                     self.custom_logo_image = Some(rgba);
                     self.custom_logo_path = Some(path.clone());
+                    self.custom_logo_raw = Some((bytes, ext));
                     self.overlay_options.network = PaymentNetwork::Custom;
                     self.active_layer = ActiveTransformLayer::Logo;
                     Ok(format!("Custom logo loaded: {}", path.display()))
@@ -187,8 +198,10 @@ impl CardStudioState {
         match std::fs::read(&path) {
             Ok(bytes) => match crate::card_studio::workspace::load_image_any_format(&bytes, path.to_str()) {
                 Ok(rgba) => {
+                    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("png").to_lowercase();
                     self.custom_chip_image = Some(rgba);
                     self.custom_chip_path = Some(path.clone());
+                    self.custom_chip_raw = Some((bytes, ext));
                     self.overlay_options.show_chip = true;
                     self.active_layer = ActiveTransformLayer::Chip;
                     Ok(format!("Custom chip loaded: {}", path.display()))
@@ -211,8 +224,10 @@ impl CardStudioState {
         match std::fs::read(&path) {
             Ok(bytes) => match crate::card_studio::workspace::load_image_any_format(&bytes, path.to_str()) {
                 Ok(rgba) => {
+                    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("png").to_lowercase();
                     self.custom_finish_image = Some(rgba);
                     self.custom_finish_path = Some(path.clone());
+                    self.custom_finish_raw = Some((bytes, ext));
                     self.overlay_options.finish = CardFinish::CustomTexture;
                     self.active_layer = ActiveTransformLayer::Finish;
                     Ok(format!("Custom finish texture loaded: {}", path.display()))
@@ -223,7 +238,11 @@ impl CardStudioState {
         }
     }
 
-    pub fn save_workspace_dialog(&self, source_image: Option<&DynamicImage>) -> Result<String, String> {
+    pub fn save_workspace_dialog(
+        &self,
+        source_image: Option<&DynamicImage>,
+        source_raw: Option<&(Vec<u8>, String)>,
+    ) -> Result<String, String> {
         let Some(path) = rfd::FileDialog::new()
             .set_title("Save AirCard CMaku Workspace (.wcm)")
             .add_filter("AirCard Workspace (*.wcm)", &["wcm", "WCM"])
@@ -238,13 +257,13 @@ impl CardStudioState {
             path.set_extension("wcm");
         }
 
-        match crate::card_studio::workspace::save_workspace_wcm(self, source_image, &path) {
+        match crate::card_studio::workspace::save_workspace_wcm(self, source_image, source_raw, &path) {
             Ok(()) => Ok(format!("Đã lưu file workspace (.wcm) thành công: {}", path.display())),
             Err(e) => Err(format!("Lỗi khi lưu workspace: {e:#}")),
         }
     }
 
-    pub fn load_workspace_dialog(&mut self) -> Result<(String, Option<DynamicImage>), String> {
+    pub fn load_workspace_dialog(&mut self) -> Result<(String, Option<DynamicImage>, Option<(Vec<u8>, String)>), String> {
         let Some(path) = rfd::FileDialog::new()
             .set_title("Open AirCard CMaku Workspace (.wcm)")
             .add_filter("AirCard Workspace (*.wcm)", &["wcm", "WCM"])
@@ -254,7 +273,7 @@ impl CardStudioState {
         };
 
         match crate::card_studio::workspace::load_workspace_wcm(self, &path) {
-            Ok(source_img) => Ok((format!("Đã mở workspace thành công: {}", path.display()), source_img)),
+            Ok((source_img, source_raw)) => Ok((format!("Đã mở workspace thành công: {}", path.display()), source_img, source_raw)),
             Err(e) => Err(format!("Lỗi khi nạp workspace: {e:#}")),
         }
     }

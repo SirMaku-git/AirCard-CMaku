@@ -37,6 +37,8 @@ pub struct CustomWidget {
     pub image: image::RgbaImage,
     #[allow(dead_code)]
     pub path: Option<PathBuf>,
+    pub raw_bytes: Option<Vec<u8>>,
+    pub original_ext: Option<String>,
 }
 
 impl CustomWidget {
@@ -49,6 +51,12 @@ impl CustomWidget {
             .and_then(|s| s.to_str())
             .unwrap_or("Widget")
             .to_string();
+
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("png")
+            .to_lowercase();
 
         let aspect = if h > 0 { w as f32 / h as f32 } else { 1.0 };
         let (base_w, base_h) = if aspect >= 1.0 {
@@ -75,6 +83,8 @@ impl CustomWidget {
             data,
             image: rgba,
             path: Some(path),
+            raw_bytes: Some(bytes),
+            original_ext: Some(ext),
         })
     }
 }

@@ -69,12 +69,24 @@ pub struct WorkspaceManifest {
     pub name: String,
     pub overlay_options: CardOverlayOptions,
     pub has_source_image: bool,
+    #[serde(default)]
+    pub source_filename: Option<String>,
     pub has_custom_logo: bool,
+    #[serde(default)]
+    pub logo_filename: Option<String>,
     pub has_custom_chip: bool,
+    #[serde(default)]
+    pub chip_filename: Option<String>,
     pub has_custom_finish: bool,
+    #[serde(default)]
+    pub finish_filename: Option<String>,
     pub has_custom_font: bool,
+    #[serde(default)]
+    pub font_filename: Option<String>,
     pub custom_font_name: Option<String>,
     pub widgets_data: Vec<CustomWidgetData>,
+    #[serde(default)]
+    pub widget_filenames: Vec<String>,
 }
 
 fn encode_rgba_to_png(img: &RgbaImage) -> Result<Vec<u8>> {
@@ -83,9 +95,40 @@ fn encode_rgba_to_png(img: &RgbaImage) -> Result<Vec<u8>> {
     Ok(buf.into_inner())
 }
 
+fn write_asset_entry(
+    zip: &mut ZipWriter<File>,
+    options: SimpleFileOptions,
+    filename: &str,
+    raw_data: Option<&[u8]>,
+    fallback_image: Option<&RgbaImage>,
+) -> Result<Option<String>> {
+    if let Some(bytes) = raw_data {
+        zip.start_file(filename, options)?;
+        zip.write_all(bytes)?;
+        return Ok(Some(filename.to_string()));
+    }
+    if let Some(img) = fallback_image {
+        let png_name = if filename.ends_with(".png") {
+            filename.to_string()
+        } else {
+            let base = Path::new(filename)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("asset");
+            format!("{base}.png")
+        };
+        zip.start_file(&png_name, options)?;
+        let png_bytes = encode_rgba_to_png(img)?;
+        zip.write_all(&png_bytes)?;
+        return Ok(Some(png_name));
+    }
+    Ok(None)
+}
+
 pub fn save_workspace_wcm(
     state: &CardStudioState,
     source_image: Option<&DynamicImage>,
+    source_raw: Option<&(Vec<u8>, String)>,
     target_path: &Path,
 ) -> Result<()> {
     let file = File::create(target_path)
@@ -95,86 +138,144 @@ pub fn save_workspace_wcm(
         .compression_method(zip::CompressionMethod::Deflated)
         .unix_permissions(0o644);
 
-    let manifest = WorkspaceManifest {
+    let mut manifest = WorkspaceManifest {
         format: "AirCard-CMaku-Workspace".to_string(),
-        version: "1.0".to_string(),
+        version: "1.1".to_string(),
         name: target_path
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("card_workspace")
             .to_string(),
         overlay_options: state.overlay_options.clone(),
-        has_source_image: source_image.is_some(),
-        has_custom_logo: state.custom_logo_image.is_some(),
-        has_custom_chip: state.custom_chip_image.is_some(),
-        has_custom_finish: state.custom_finish_image.is_some(),
+        has_source_image: source_image.is_some() || source_raw.is_some(),
+        source_filename: None,
+        has_custom_logo: state.custom_logo_image.is_some() || state.custom_logo_raw.is_some(),
+        logo_filename: None,
+        has_custom_chip: state.custom_chip_image.is_some() || state.custom_chip_raw.is_some(),
+        chip_filename: None,
+        has_custom_finish: state.custom_finish_image.is_some() || state.custom_finish_raw.is_some(),
+        finish_filename: None,
         has_custom_font: state.custom_font_bytes.is_some(),
+        font_filename: None,
         custom_font_name: state.custom_font_name.clone(),
         widgets_data: state.custom_widgets.iter().map(|w| w.data.clone()).collect(),
+        widget_filenames: Vec::new(),
     };
 
-    // 1. Write manifest.json
+    // 1. Write source background image (preserve raw format like SVG/JPG/WebP to save space and keep 100% quality)
+    if let Some((raw_bytes, ext)) = source_raw {
+        let name = format!("source_image.{ext}");
+        manifest.source_filename = write_asset_entry(&mut zip, options, &name, Some(raw_bytes), None)?;
+    } else if let Some(src_img) = source_image {
+        let rgba = src_img.to_rgba8();
+        manifest.source_filename = write_asset_entry(&mut zip, options, "source_image.png", None, Some(&rgba))?;
+    }
+
+    // 2. Write custom logo (preserves raw SVG/PNG)
+    if let Some((raw_bytes, ext)) = &state.custom_logo_raw {
+        let name = format!("custom_logo.{ext}");
+        manifest.logo_filename = write_asset_entry(&mut zip, options, &name, Some(raw_bytes), None)?;
+    } else if let Some(ref logo) = state.custom_logo_image {
+        manifest.logo_filename = write_asset_entry(&mut zip, options, "custom_logo.png", None, Some(logo))?;
+    }
+
+    // 3. Write custom chip (preserves raw SVG/PNG)
+    if let Some((raw_bytes, ext)) = &state.custom_chip_raw {
+        let name = format!("custom_chip.{ext}");
+        manifest.chip_filename = write_asset_entry(&mut zip, options, &name, Some(raw_bytes), None)?;
+    } else if let Some(ref chip) = state.custom_chip_image {
+        manifest.chip_filename = write_asset_entry(&mut zip, options, "custom_chip.png", None, Some(chip))?;
+    }
+
+    // 4. Write custom finish texture
+    if let Some((raw_bytes, ext)) = &state.custom_finish_raw {
+        let name = format!("custom_finish.{ext}");
+        manifest.finish_filename = write_asset_entry(&mut zip, options, &name, Some(raw_bytes), None)?;
+    } else if let Some(ref finish) = state.custom_finish_image {
+        manifest.finish_filename = write_asset_entry(&mut zip, options, "custom_finish.png", None, Some(finish))?;
+    }
+
+    // 5. Write custom font
+    if let Some(ref font_bytes) = state.custom_font_bytes {
+        let font_ext = state
+            .custom_font_path
+            .as_ref()
+            .and_then(|p| p.extension())
+            .and_then(|e| e.to_str())
+            .unwrap_or("ttf");
+        let name = format!("custom_font.{font_ext}");
+        zip.start_file(&name, options)?;
+        zip.write_all(font_bytes)?;
+        manifest.font_filename = Some(name);
+    }
+
+    // 6. Write custom widgets (preserves raw SVG/PNG/JPG/WebP per widget)
+    for (i, widget) in state.custom_widgets.iter().enumerate() {
+        if let (Some(raw), Some(ext)) = (&widget.raw_bytes, &widget.original_ext) {
+            let name = format!("widget_{i}.{ext}");
+            if let Some(written_name) = write_asset_entry(&mut zip, options, &name, Some(raw), None)? {
+                manifest.widget_filenames.push(written_name);
+            }
+        } else {
+            let name = format!("widget_{i}.png");
+            if let Some(written_name) = write_asset_entry(&mut zip, options, &name, None, Some(&widget.image))? {
+                manifest.widget_filenames.push(written_name);
+            }
+        }
+    }
+
+    // 7. Write manifest.json with full asset paths
     zip.start_file("manifest.json", options)?;
     let manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
     zip.write_all(&manifest_bytes)?;
-
-    // 2. Write source background image
-    if let Some(src_img) = source_image {
-        zip.start_file("source_image.png", options)?;
-        let rgba = src_img.to_rgba8();
-        let png_bytes = encode_rgba_to_png(&rgba)?;
-        zip.write_all(&png_bytes)?;
-    }
-
-    // 3. Write custom logo
-    if let Some(ref logo) = state.custom_logo_image {
-        zip.start_file("custom_logo.png", options)?;
-        let png_bytes = encode_rgba_to_png(logo)?;
-        zip.write_all(&png_bytes)?;
-    }
-
-    // 4. Write custom chip
-    if let Some(ref chip) = state.custom_chip_image {
-        zip.start_file("custom_chip.png", options)?;
-        let png_bytes = encode_rgba_to_png(chip)?;
-        zip.write_all(&png_bytes)?;
-    }
-
-    // 5. Write custom finish texture
-    if let Some(ref finish) = state.custom_finish_image {
-        zip.start_file("custom_finish.png", options)?;
-        let png_bytes = encode_rgba_to_png(finish)?;
-        zip.write_all(&png_bytes)?;
-    }
-
-    // 6. Write custom font
-    if let Some(ref font_bytes) = state.custom_font_bytes {
-        zip.start_file("custom_font.ttf", options)?;
-        zip.write_all(font_bytes)?;
-    }
-
-    // 7. Write custom widgets
-    for (i, widget) in state.custom_widgets.iter().enumerate() {
-        zip.start_file(format!("widget_{i}.png"), options)?;
-        let png_bytes = encode_rgba_to_png(&widget.image)?;
-        zip.write_all(&png_bytes)?;
-    }
 
     zip.finish()?;
     Ok(())
 }
 
+fn find_and_read_entry(
+    zip: &mut ZipArchive<File>,
+    preferred_name: Option<&str>,
+    fallback_prefix: &str,
+    exts: &[&str],
+) -> Option<(Vec<u8>, String)> {
+    if let Some(name) = preferred_name {
+        if let Ok(mut f) = zip.by_name(name) {
+            let mut buf = Vec::new();
+            if f.read_to_end(&mut buf).is_ok() {
+                let ext = Path::new(name)
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("png")
+                    .to_lowercase();
+                return Some((buf, ext));
+            }
+        }
+    }
+    for ext in exts {
+        let name = format!("{fallback_prefix}.{ext}");
+        if let Ok(mut f) = zip.by_name(&name) {
+            let mut buf = Vec::new();
+            if f.read_to_end(&mut buf).is_ok() {
+                return Some((buf, (*ext).to_string()));
+            }
+        }
+    }
+    None
+}
+
 pub fn load_workspace_wcm(
     state: &mut CardStudioState,
     source_path: &Path,
-) -> Result<Option<DynamicImage>> {
+) -> Result<(Option<DynamicImage>, Option<(Vec<u8>, String)>)> {
     let file = File::open(source_path)
         .with_context(|| format!("Cannot open workspace file: {}", source_path.display()))?;
     let mut zip = ZipArchive::new(file)?;
 
     // 1. Read manifest.json
     let manifest: WorkspaceManifest = {
-        let mut manifest_file = zip.by_name("manifest.json")
+        let mut manifest_file = zip
+            .by_name("manifest.json")
             .with_context(|| "Invalid .wcm workspace: missing manifest.json")?;
         let mut content = Vec::new();
         manifest_file.read_to_end(&mut content)?;
@@ -185,54 +286,74 @@ pub fn load_workspace_wcm(
     state.overlay_options = manifest.overlay_options;
     state.overlay_options.details.ensure_items();
 
-    // 3. Restore source background image
+    // 3. Restore source background image (preserving raw bytes)
     let mut loaded_source_image: Option<DynamicImage> = None;
+    let mut loaded_source_raw: Option<(Vec<u8>, String)> = None;
     if manifest.has_source_image {
-        if let Ok(mut img_file) = zip.by_name("source_image.png") {
-            let mut bytes = Vec::new();
-            if img_file.read_to_end(&mut bytes).is_ok() {
-                if let Ok(dyn_img) = image::load_from_memory(&bytes) {
-                    loaded_source_image = Some(dyn_img);
-                }
+        let supported_exts = ["svg", "png", "jpg", "jpeg", "webp", "bmp", "gif", "ico", "tiff"];
+        if let Some((bytes, ext)) = find_and_read_entry(
+            &mut zip,
+            manifest.source_filename.as_deref(),
+            "source_image",
+            &supported_exts,
+        ) {
+            if let Ok(rgba) = load_image_any_format(&bytes, Some(&format!("source.{ext}"))) {
+                loaded_source_image = Some(DynamicImage::ImageRgba8(rgba));
+                loaded_source_raw = Some((bytes, ext));
             }
         }
     }
 
-    // 4. Restore custom logo
+    // 4. Restore custom logo (preserving raw bytes)
     state.custom_logo_image = None;
+    state.custom_logo_raw = None;
     if manifest.has_custom_logo {
-        if let Ok(mut logo_file) = zip.by_name("custom_logo.png") {
-            let mut bytes = Vec::new();
-            if logo_file.read_to_end(&mut bytes).is_ok() {
-                if let Ok(img) = image::load_from_memory(&bytes) {
-                    state.custom_logo_image = Some(img.to_rgba8());
-                }
+        let supported_exts = ["svg", "png", "jpg", "jpeg", "webp", "bmp", "ico"];
+        if let Some((bytes, ext)) = find_and_read_entry(
+            &mut zip,
+            manifest.logo_filename.as_deref(),
+            "custom_logo",
+            &supported_exts,
+        ) {
+            if let Ok(rgba) = load_image_any_format(&bytes, Some(&format!("logo.{ext}"))) {
+                state.custom_logo_image = Some(rgba);
+                state.custom_logo_raw = Some((bytes, ext));
             }
         }
     }
 
-    // 5. Restore custom chip
+    // 5. Restore custom chip (preserving raw bytes)
     state.custom_chip_image = None;
+    state.custom_chip_raw = None;
     if manifest.has_custom_chip {
-        if let Ok(mut chip_file) = zip.by_name("custom_chip.png") {
-            let mut bytes = Vec::new();
-            if chip_file.read_to_end(&mut bytes).is_ok() {
-                if let Ok(img) = image::load_from_memory(&bytes) {
-                    state.custom_chip_image = Some(img.to_rgba8());
-                }
+        let supported_exts = ["svg", "png", "webp", "ico"];
+        if let Some((bytes, ext)) = find_and_read_entry(
+            &mut zip,
+            manifest.chip_filename.as_deref(),
+            "custom_chip",
+            &supported_exts,
+        ) {
+            if let Ok(rgba) = load_image_any_format(&bytes, Some(&format!("chip.{ext}"))) {
+                state.custom_chip_image = Some(rgba);
+                state.custom_chip_raw = Some((bytes, ext));
             }
         }
     }
 
-    // 6. Restore custom finish texture
+    // 6. Restore custom finish texture (preserving raw bytes)
     state.custom_finish_image = None;
+    state.custom_finish_raw = None;
     if manifest.has_custom_finish {
-        if let Ok(mut finish_file) = zip.by_name("custom_finish.png") {
-            let mut bytes = Vec::new();
-            if finish_file.read_to_end(&mut bytes).is_ok() {
-                if let Ok(img) = image::load_from_memory(&bytes) {
-                    state.custom_finish_image = Some(img.to_rgba8());
-                }
+        let supported_exts = ["svg", "png", "jpg", "jpeg", "webp", "bmp"];
+        if let Some((bytes, ext)) = find_and_read_entry(
+            &mut zip,
+            manifest.finish_filename.as_deref(),
+            "custom_finish",
+            &supported_exts,
+        ) {
+            if let Ok(rgba) = load_image_any_format(&bytes, Some(&format!("finish.{ext}"))) {
+                state.custom_finish_image = Some(rgba);
+                state.custom_finish_raw = Some((bytes, ext));
             }
         }
     }
@@ -241,34 +362,41 @@ pub fn load_workspace_wcm(
     state.custom_font_bytes = None;
     state.custom_font_name = manifest.custom_font_name.clone();
     if manifest.has_custom_font {
-        if let Ok(mut font_file) = zip.by_name("custom_font.ttf") {
-            let mut bytes = Vec::new();
-            if font_file.read_to_end(&mut bytes).is_ok() {
-                state.custom_font_bytes = Some(bytes);
-            }
+        if let Some((bytes, _)) = find_and_read_entry(
+            &mut zip,
+            manifest.font_filename.as_deref(),
+            "custom_font",
+            &["ttf", "otf"],
+        ) {
+            state.custom_font_bytes = Some(bytes);
         }
     }
 
-    // 8. Restore custom widgets
+    // 8. Restore custom widgets (preserving raw bytes per widget)
     state.custom_widgets.clear();
+    let supported_exts = ["svg", "png", "jpg", "jpeg", "webp", "bmp", "gif", "ico", "tiff"];
     for (i, widget_data) in manifest.widgets_data.into_iter().enumerate() {
-        let entry_name = format!("widget_{i}.png");
-        if let Ok(mut w_file) = zip.by_name(&entry_name) {
-            let mut bytes = Vec::new();
-            if w_file.read_to_end(&mut bytes).is_ok() {
-                if let Ok(img) = image::load_from_memory(&bytes) {
-                    state.custom_widgets.push(CustomWidget {
-                        data: widget_data,
-                        image: img.to_rgba8(),
-                        path: None,
-                    });
-                }
+        let preferred = manifest.widget_filenames.get(i).map(|s| s.as_str());
+        if let Some((bytes, ext)) = find_and_read_entry(
+            &mut zip,
+            preferred,
+            &format!("widget_{i}"),
+            &supported_exts,
+        ) {
+            if let Ok(rgba) = load_image_any_format(&bytes, Some(&format!("widget_{i}.{ext}"))) {
+                state.custom_widgets.push(CustomWidget {
+                    data: widget_data,
+                    image: rgba,
+                    path: None,
+                    raw_bytes: Some(bytes),
+                    original_ext: Some(ext),
+                });
             }
         }
     }
 
     state.selected_text_index = 0;
-    Ok(loaded_source_image)
+    Ok((loaded_source_image, loaded_source_raw))
 }
 
 #[cfg(test)]
@@ -300,7 +428,7 @@ mod tests {
         let temp_dir = std::env::temp_dir();
         let test_wcm_path = temp_dir.join("test_aircard_workspace.wcm");
 
-        save_workspace_wcm(&state, None, &test_wcm_path).expect("Should save .wcm");
+        save_workspace_wcm(&state, None, None, &test_wcm_path).expect("Should save .wcm");
 
         let mut restored_state = CardStudioState::new();
         let _ = load_workspace_wcm(&mut restored_state, &test_wcm_path).expect("Should load .wcm");
@@ -309,6 +437,32 @@ mod tests {
         assert_eq!(restored_state.overlay_options.details.items.len(), state.overlay_options.details.items.len());
         assert_eq!(restored_state.overlay_options.details.items[item_idx].content, "WORKSPACE TEST");
         assert!(restored_state.overlay_options.details.items[item_idx].has_backdrop);
+
+        let _ = std::fs::remove_file(test_wcm_path);
+    }
+
+    #[test]
+    fn test_workspace_raw_svg_asset_preservation() {
+        let state = CardStudioState::new();
+        let svg_data = b"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"100\"><rect width=\"200\" height=\"100\" fill=\"#0000ff\" /></svg>".to_vec();
+        let source_raw = (svg_data.clone(), "svg".to_string());
+
+        let temp_dir = std::env::temp_dir();
+        let test_wcm_path = temp_dir.join("test_aircard_raw_svg.wcm");
+
+        save_workspace_wcm(&state, None, Some(&source_raw), &test_wcm_path).expect("Should save .wcm with raw SVG");
+
+        // Verify that the file size is very small (around a few hundred bytes, NOT megabytes)
+        let metadata = std::fs::metadata(&test_wcm_path).expect("File must exist");
+        assert!(metadata.len() < 2048, "Raw SVG .wcm must be tiny (< 2KB), was {} bytes", metadata.len());
+
+        let mut restored_state = CardStudioState::new();
+        let (loaded_img, loaded_raw) = load_workspace_wcm(&mut restored_state, &test_wcm_path).expect("Should load .wcm");
+
+        assert!(loaded_img.is_some(), "Should render SVG into image");
+        let (raw_bytes, ext) = loaded_raw.expect("Should restore raw bytes and ext");
+        assert_eq!(ext, "svg");
+        assert_eq!(raw_bytes, svg_data);
 
         let _ = std::fs::remove_file(test_wcm_path);
     }

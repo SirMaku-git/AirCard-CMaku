@@ -79,6 +79,7 @@ pub struct AirCardApp {
     saved_cards: Vec<SavedCard>,
     source_path: Option<PathBuf>,
     source_image: Option<DynamicImage>,
+    source_raw: Option<(Vec<u8>, String)>,
     source_texture: Option<egui::TextureHandle>,
     crop_focus: [f32; 2],
     crop_dirty: bool,
@@ -133,6 +134,7 @@ impl AirCardApp {
             saved_cards: load_saved_cards(),
             source_path: None,
             source_image: None,
+            source_raw: None,
             source_texture: None,
             crop_focus: [0.5, 0.5],
             crop_dirty: false,
@@ -288,13 +290,22 @@ impl AirCardApp {
             return;
         };
 
+        let ext = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("png")
+            .to_string();
+
         self.add_log(format!("Opening skin image: {}", path.display()));
-        let source_res = match std::fs::read(&path) {
-            Ok(bytes) => match crate::card_studio::workspace::load_image_any_format(&bytes, path.to_str()) {
-                Ok(rgba) => Ok(DynamicImage::ImageRgba8(rgba)),
-                Err(e) => Err(format!("Could not parse image {}: {e:#}", path.display())),
-            },
-            Err(e) => Err(format!("Could not read file {}: {e:#}", path.display())),
+        let (raw_bytes, source_res) = match std::fs::read(&path) {
+            Ok(bytes) => {
+                let parsed = match crate::card_studio::workspace::load_image_any_format(&bytes, path.to_str()) {
+                    Ok(rgba) => Ok(DynamicImage::ImageRgba8(rgba)),
+                    Err(e) => Err(format!("Could not parse image {}: {e:#}", path.display())),
+                };
+                (Some(bytes), parsed)
+            }
+            Err(e) => (None, Err(format!("Could not read file {}: {e:#}", path.display()))),
         };
 
         match source_res {
@@ -339,6 +350,7 @@ impl AirCardApp {
                 );
                 self.source_path = Some(path);
                 self.source_image = Some(source_image);
+                self.source_raw = raw_bytes.map(|b| (b, ext));
                 self.crop_focus = [0.5, 0.5];
                 self.crop_dirty = false;
                 self.skin = Some(skin);
@@ -433,7 +445,7 @@ impl AirCardApp {
     }
 
     fn save_workspace(&mut self) {
-        match self.card_studio.save_workspace_dialog(self.source_image.as_ref()) {
+        match self.card_studio.save_workspace_dialog(self.source_image.as_ref(), self.source_raw.as_ref()) {
             Ok(msg) => {
                 self.add_log(format!("Workspace saved: {msg}"));
                 self.status_msg = msg;
@@ -448,7 +460,7 @@ impl AirCardApp {
 
     fn load_workspace(&mut self, ctx: &egui::Context) {
         match self.card_studio.load_workspace_dialog() {
-            Ok((msg, loaded_img)) => {
+            Ok((msg, loaded_img, loaded_raw)) => {
                 if let Some(dyn_img) = loaded_img {
                     let rgba = dyn_img.to_rgba8();
                     let (w, h) = (rgba.width() as usize, rgba.height() as usize);
@@ -456,6 +468,7 @@ impl AirCardApp {
                     self.source_texture = Some(ctx.load_texture("source_image", color_img, egui::TextureOptions::LINEAR));
                     self.source_image = Some(dyn_img);
                 }
+                self.source_raw = loaded_raw;
                 self.recompute_studio_skin(ctx);
                 self.add_log(format!("Workspace loaded: {msg}"));
                 self.status_msg = msg;
