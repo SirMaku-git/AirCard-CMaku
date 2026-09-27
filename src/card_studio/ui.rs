@@ -1,4 +1,4 @@
-﻿use eframe::egui;
+use eframe::egui;
 use crate::app::md3;
 use crate::card_studio::types::*;
 use crate::card_studio::CardStudioState;
@@ -405,8 +405,9 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
         });
     }
 
-    // Row 4: Card Details Inputs
+    // Row 4: Card Details Inputs & Modular Text Items
     if state.overlay_options.details.show_details {
+        state.overlay_options.details.ensure_items();
         ui.add_space(4.0);
         egui::Frame::NONE
             .fill(md3::SURFACE_CONTAINER_HIGH)
@@ -459,7 +460,7 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
                             }
                         });
 
-                    let ypos_lbl = if is_vi { "Vị trí Y:" } else { "Y-Pos:" };
+                    let ypos_lbl = if is_vi { "Độ lệch Y:" } else { "Offset Y:" };
                     ui.label(egui::RichText::new(ypos_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                     if ui.add(egui::DragValue::new(&mut state.overlay_options.details.vertical_offset).range(-250..=250).speed(1.0)).changed() {
                         overlay_changed = true;
@@ -471,88 +472,13 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
                         overlay_changed = true;
                     }
 
-                    let sc_lbl = if is_vi { "Cỡ:" } else { "Scale:" };
+                    let sc_lbl = if is_vi { "Cỡ tổng:" } else { "Scale:" };
                     ui.label(egui::RichText::new(sc_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                     let mut sc_pct = (state.overlay_options.details.scale * 100.0).round() as i32;
                     if ui.add(egui::Slider::new(&mut sc_pct, 40..=250).suffix("%")).changed() {
                         state.overlay_options.details.scale = (sc_pct as f32 / 100.0).clamp(0.4, 2.5);
                         overlay_changed = true;
                     }
-                });
-
-                ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    let num_lbl = if is_vi { "Số thẻ:" } else { "Card Number:" };
-                    ui.label(egui::RichText::new(num_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
-                    if ui.add(egui::TextEdit::singleline(&mut state.overlay_options.details.card_number).desired_width(140.0)).changed() {
-                        overlay_changed = true;
-                    }
-
-                    let exp_lbl = if is_vi { "Hết hạn (MM/YY):" } else { "Valid Thru:" };
-                    ui.label(egui::RichText::new(exp_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
-                    if ui.add(egui::TextEdit::singleline(&mut state.overlay_options.details.card_expiry).desired_width(48.0)).changed() {
-                        overlay_changed = true;
-                    }
-                });
-
-                ui.add_space(3.0);
-                ui.horizontal(|ui| {
-                    let holder_lbl = if is_vi { "Tên chủ thẻ:" } else { "Cardholder:" };
-                    ui.label(egui::RichText::new(holder_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
-                    if ui.add(egui::TextEdit::singleline(&mut state.overlay_options.details.card_holder).desired_width(135.0)).changed() {
-                        overlay_changed = true;
-                    }
-
-                    let bank_lbl = if is_vi { "Ngân hàng / Loại thẻ:" } else { "Bank / Title:" };
-                    ui.label(egui::RichText::new(bank_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
-                    if ui.add(egui::TextEdit::singleline(&mut state.overlay_options.details.card_type_or_bank).desired_width(95.0)).changed() {
-                        overlay_changed = true;
-                    }
-                });
-
-                ui.add_space(3.0);
-                ui.horizontal(|ui| {
-                    let num_font_lbl = if is_vi { "Font số:" } else { "Num Font:" };
-                    ui.label(egui::RichText::new(num_font_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
-                    let cur_num_font = state.overlay_options.details.number_font;
-                    egui::ComboBox::from_id_salt("num_font_sidebar")
-                        .width(135.0)
-                        .selected_text(egui::RichText::new(cur_num_font.display_name_lang(is_vi)).size(10.5).color(md3::ON_SURFACE))
-                        .show_ui(ui, |ui| {
-                            for f in [
-                                CardFontPreset::ClassicOcr,
-                                CardFontPreset::ModernSans,
-                                CardFontPreset::Monospace,
-                                CardFontPreset::Custom,
-                            ] {
-                                let is_sel = cur_num_font == f;
-                                if ui.selectable_label(is_sel, f.display_name_lang(is_vi)).clicked() {
-                                    state.overlay_options.details.number_font = f;
-                                    overlay_changed = true;
-                                }
-                            }
-                        });
-
-                    let text_font_lbl = if is_vi { "Font chữ:" } else { "Text Font:" };
-                    ui.label(egui::RichText::new(text_font_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
-                    let cur_text_font = state.overlay_options.details.text_font;
-                    egui::ComboBox::from_id_salt("text_font_sidebar")
-                        .width(135.0)
-                        .selected_text(egui::RichText::new(cur_text_font.display_name_lang(is_vi)).size(10.5).color(md3::ON_SURFACE))
-                        .show_ui(ui, |ui| {
-                            for f in [
-                                CardFontPreset::ModernSans,
-                                CardFontPreset::ClassicOcr,
-                                CardFontPreset::SerifLuxury,
-                                CardFontPreset::Custom,
-                            ] {
-                                let is_sel = cur_text_font == f;
-                                if ui.selectable_label(is_sel, f.display_name_lang(is_vi)).clicked() {
-                                    state.overlay_options.details.text_font = f;
-                                    overlay_changed = true;
-                                }
-                            }
-                        });
                 });
 
                 ui.add_space(3.0);
@@ -580,6 +506,156 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
                         }
                     }
                 });
+
+                ui.add_space(5.0);
+                ui.separator();
+                ui.add_space(3.0);
+
+                // Section header for modular text fields
+                ui.horizontal(|ui| {
+                    let sec_hdr = if is_vi { "📝 Thông tin thẻ (Các dòng chữ)" } else { "📝 Card Text Fields" };
+                    ui.label(egui::RichText::new(sec_hdr).strong().size(11.5).color(md3::ON_SURFACE));
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let add_lbl = if is_vi { "➕ Thêm chữ" } else { "➕ Add Text" };
+                        let add_btn = egui::Button::new(
+                            egui::RichText::new(add_lbl).size(10.5).color(md3::PRIMARY).strong()
+                        )
+                        .fill(md3::SURFACE_CONTAINER)
+                        .corner_radius(12)
+                        .stroke(egui::Stroke::new(1.0_f32, md3::PRIMARY));
+
+                        if ui.add(add_btn)
+                            .on_hover_text(if is_vi { "Thêm một dòng chữ mới tùy chỉnh lên thẻ" } else { "Add a new customizable text field to the card" })
+                            .clicked()
+                        {
+                            state.add_text_item();
+                            overlay_changed = true;
+                        }
+                    });
+                });
+                ui.add_space(4.0);
+
+                // Modular text items list
+                let mut remove_idx = None;
+                let items_len = state.overlay_options.details.items.len();
+                for idx in 0..items_len {
+                    let is_selected = state.active_layer == ActiveTransformLayer::Details && state.selected_text_index == idx;
+                    let item = &mut state.overlay_options.details.items[idx];
+
+                    let frame_fill = if is_selected {
+                        md3::SURFACE_CONTAINER_HIGH
+                    } else {
+                        md3::SURFACE_CONTAINER
+                    };
+                    let frame_stroke = if is_selected {
+                        egui::Stroke::new(1.0_f32, md3::PRIMARY)
+                    } else {
+                        egui::Stroke::new(0.5_f32, md3::OUTLINE_VARIANT)
+                    };
+
+                    egui::Frame::NONE
+                        .fill(frame_fill)
+                        .corner_radius(6.0)
+                        .inner_margin(6.0)
+                        .stroke(frame_stroke)
+                        .show(ui, |ui| {
+                            // Row 1: Select Chip, Label, Visibility, Uppercase, Delete
+                            ui.horizontal(|ui| {
+                                let sel_btn_lbl = format!("#{}", idx + 1);
+                                if ui.selectable_label(is_selected, sel_btn_lbl).clicked() {
+                                    state.active_layer = ActiveTransformLayer::Details;
+                                    state.selected_text_index = idx;
+                                }
+
+                                if ui.checkbox(&mut item.visible, "").on_hover_text(if is_vi { "Ẩn/hiện dòng chữ này" } else { "Show/hide this text item" }).changed() {
+                                    overlay_changed = true;
+                                }
+
+                                ui.label(egui::RichText::new(if is_vi { "Nhãn:" } else { "Label:" }).size(10.5).color(md3::ON_SURFACE_VARIANT));
+                                if ui.add(egui::TextEdit::singleline(&mut item.label).desired_width(110.0)).changed() {
+                                    overlay_changed = true;
+                                }
+
+                                let case_btn = if item.is_uppercase { "🔠 HOA" } else { "🔡 Thường" };
+                                if ui.button(egui::RichText::new(case_btn).size(10.0).color(md3::ON_SURFACE_VARIANT))
+                                    .on_hover_text(if is_vi { "Chuyển đổi VIẾT HOA / Chữ thường" } else { "Toggle UPPERCASE / Normal" })
+                                    .clicked()
+                                {
+                                    item.is_uppercase = !item.is_uppercase;
+                                    overlay_changed = true;
+                                }
+
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    if ui.button(egui::RichText::new("🗑").size(11.0).color(md3::ERROR))
+                                        .on_hover_text(if is_vi { "Xóa dòng chữ này" } else { "Delete this text field" })
+                                        .clicked()
+                                    {
+                                        remove_idx = Some(idx);
+                                    }
+                                });
+                            });
+
+                            ui.add_space(2.0);
+
+                            // Row 2: Text content input
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new(if is_vi { "Chữ:" } else { "Text:" }).size(10.5).color(md3::ON_SURFACE_VARIANT));
+                                if ui.add(egui::TextEdit::singleline(&mut item.content).desired_width(260.0)).changed() {
+                                    overlay_changed = true;
+                                }
+                            });
+
+                            ui.add_space(2.0);
+
+                            // Row 3: Font preset, Font size, X, Y, Letter spacing
+                            ui.horizontal(|ui| {
+                                egui::ComboBox::from_id_salt(format!("font_sel_{}", item.id))
+                                    .width(115.0)
+                                    .selected_text(egui::RichText::new(item.font.display_name_lang(is_vi)).size(10.0).color(md3::ON_SURFACE))
+                                    .show_ui(ui, |ui| {
+                                        for f in [
+                                            CardFontPreset::ClassicOcr,
+                                            CardFontPreset::ModernSans,
+                                            CardFontPreset::Monospace,
+                                            CardFontPreset::SerifLuxury,
+                                            CardFontPreset::Custom,
+                                        ] {
+                                            if ui.selectable_label(item.font == f, f.display_name_lang(is_vi)).clicked() {
+                                                item.font = f;
+                                                overlay_changed = true;
+                                            }
+                                        }
+                                    });
+
+                                ui.label(egui::RichText::new("Cỡ:").size(10.0).color(md3::ON_SURFACE_VARIANT));
+                                if ui.add(egui::DragValue::new(&mut item.font_size).range(10.0..=120.0).speed(0.5)).changed() {
+                                    overlay_changed = true;
+                                }
+
+                                ui.label(egui::RichText::new("X:").size(10.0).color(md3::ON_SURFACE_VARIANT));
+                                if ui.add(egui::DragValue::new(&mut item.x).range(-100.0..=1600.0).speed(1.0)).changed() {
+                                    overlay_changed = true;
+                                }
+
+                                ui.label(egui::RichText::new("Y:").size(10.0).color(md3::ON_SURFACE_VARIANT));
+                                if ui.add(egui::DragValue::new(&mut item.y).range(-50.0..=1000.0).speed(1.0)).changed() {
+                                    overlay_changed = true;
+                                }
+
+                                ui.label(egui::RichText::new("Dãn:").size(10.0).color(md3::ON_SURFACE_VARIANT));
+                                if ui.add(egui::DragValue::new(&mut item.letter_spacing).range(-2.0..=20.0).speed(0.1)).changed() {
+                                    overlay_changed = true;
+                                }
+                            });
+                        });
+                    ui.add_space(2.0);
+                }
+
+                if let Some(rm_idx) = remove_idx {
+                    state.remove_text_item(rm_idx);
+                    overlay_changed = true;
+                }
             });
     }
 
@@ -694,20 +770,20 @@ pub fn draw_studio_preview(
         let layer_buttons: &[(ActiveTransformLayer, &str)] = if is_vi {
             &[
                 (ActiveTransformLayer::Background, "🖼️ Nền"),
-                (ActiveTransformLayer::Finish, "✨ Finish"),
+                (ActiveTransformLayer::Finish, "✨ Phủ bề mặt (Finish)"),
                 (ActiveTransformLayer::Chip, "💳 Chip"),
                 (ActiveTransformLayer::Wave, "📶 Sóng"),
                 (ActiveTransformLayer::Logo, "🏷️ Logo"),
-                (ActiveTransformLayer::Details, "🔢 Chi tiết"),
+                (ActiveTransformLayer::Details, "🔢 Chữ / Thông tin"),
             ]
         } else {
             &[
                 (ActiveTransformLayer::Background, "🖼️ Background"),
-                (ActiveTransformLayer::Finish, "✨ Finish"),
+                (ActiveTransformLayer::Finish, "✨ Surface Finish"),
                 (ActiveTransformLayer::Chip, "💳 Chip"),
                 (ActiveTransformLayer::Wave, "📶 Wave"),
                 (ActiveTransformLayer::Logo, "🏷️ Logo"),
-                (ActiveTransformLayer::Details, "🔢 Details"),
+                (ActiveTransformLayer::Details, "🔢 Card Text"),
             ]
         };
         for &(layer, icon_label) in layer_buttons {
@@ -722,7 +798,19 @@ pub fn draw_studio_preview(
             .corner_radius(12)
             .stroke(egui::Stroke::new(1.0_f32, if is_active { md3::PRIMARY } else { md3::OUTLINE_VARIANT }));
 
-            if ui.add(btn).clicked() {
+            let hover_hint = if layer == ActiveTransformLayer::Finish {
+                if is_vi { "Lớp phủ bề mặt: nhám, ánh kim, vân carbon hoặc texture riêng (Surface Finish)" } else { "Surface finish layer: matte, metallic, carbon, or custom texture" }
+            } else if layer == ActiveTransformLayer::Details {
+                if is_vi { "Thông tin chữ trên thẻ: số thẻ, tên, ngày hết hạn, ngân hàng hoặc text tùy ý" } else { "Card text fields: number, name, expiry, bank or custom text" }
+            } else {
+                ""
+            };
+
+            let mut resp = ui.add(btn);
+            if !hover_hint.is_empty() {
+                resp = resp.on_hover_text(hover_hint);
+            }
+            if resp.clicked() {
                 state.active_layer = layer;
             }
         }
@@ -780,44 +868,41 @@ pub fn draw_studio_preview(
         let canvas_w = 1536.0_f32;
         let canvas_to_preview = pass_w / canvas_w;
 
-        // Direct hit-testing: click directly on widget, chip, or logo to select that layer
+        // Direct hit-testing: click directly on text item, widget, chip, or logo to select that layer
         if let Some(pos) = response.hover_pos() {
             if rect.contains(pos) && (response.clicked() || response.drag_started()) {
                 let cx = (pos.x - rect.left()) / canvas_to_preview;
                 let cy = (pos.y - rect.top()) / canvas_to_preview;
 
-                let chip_w = 205.0 * state.overlay_options.chip_scale;
-                let chip_h = 155.0 * state.overlay_options.chip_scale;
-                let chip_rect = egui::Rect::from_min_size(
-                    egui::pos2(state.overlay_options.chip_x, state.overlay_options.chip_y),
-                    egui::vec2(chip_w, chip_h),
-                );
+                // 1. Text items hit test (checked first if details are enabled)
+                let mut text_hit = None;
+                if state.overlay_options.details.show_details {
+                    state.overlay_options.details.ensure_items();
+                    let ho = state.overlay_options.details.horizontal_offset as f32;
+                    let vo = state.overlay_options.details.vertical_offset as f32;
+                    let scale = if state.overlay_options.details.scale > 0.05 { state.overlay_options.details.scale } else { 1.0 };
+                    for (idx, item) in state.overlay_options.details.items.iter().enumerate().rev() {
+                        if !item.visible || item.content.is_empty() {
+                            continue;
+                        }
+                        let item_x = item.x + ho;
+                        let item_y = item.y + vo;
+                        let font_sz = item.font_size * scale;
+                        let char_w = font_sz * 0.58 + item.letter_spacing * scale;
+                        let est_w = (item.content.chars().count() as f32 * char_w).max(40.0);
+                        let est_h = font_sz * 1.15;
+                        let text_rect = egui::Rect::from_min_size(
+                            egui::pos2(item_x, item_y - font_sz * 0.82),
+                            egui::vec2(est_w, est_h),
+                        );
+                        if text_rect.contains(egui::pos2(cx, cy)) {
+                            text_hit = Some(idx);
+                            break;
+                        }
+                    }
+                }
 
-                let logo_w = 245.0 * state.overlay_options.logo_scale;
-                let logo_h = 94.0 * state.overlay_options.logo_scale;
-                let logo_rect = egui::Rect::from_min_size(
-                    egui::pos2(state.overlay_options.logo_x, state.overlay_options.logo_y),
-                    egui::vec2(logo_w, logo_h),
-                );
-
-                let wave_w = 75.0 * state.overlay_options.wave_scale;
-                let wave_h = 95.0 * state.overlay_options.wave_scale;
-                let wave_rect = egui::Rect::from_min_size(
-                    egui::pos2(state.overlay_options.wave_x, state.overlay_options.wave_y),
-                    egui::vec2(wave_w, wave_h),
-                );
-
-                let details_rect = egui::Rect::from_min_size(
-                    egui::pos2(
-                        120.0 + state.overlay_options.details.horizontal_offset as f32,
-                        520.0 + state.overlay_options.details.vertical_offset as f32,
-                    ),
-                    egui::vec2(
-                        1100.0 * state.overlay_options.details.scale,
-                        320.0 * state.overlay_options.details.scale,
-                    ),
-                );
-
+                // 2. Custom widgets hit test
                 let mut widget_hit = None;
                 for (idx, w) in state.custom_widgets.iter().enumerate().rev() {
                     if !w.data.visible {
@@ -835,7 +920,81 @@ pub fn draw_studio_preview(
                     }
                 }
 
-                if let Some(idx) = widget_hit {
+                // 3. Chip hit test
+                let chip_scale = state.overlay_options.chip_scale.clamp(0.2, 5.0);
+                let chip_bw = 205.0 * chip_scale;
+                let chip_bh = 155.0 * chip_scale;
+                let chip_cx = state.overlay_options.chip_x + chip_bw * 0.5;
+                let chip_cy = state.overlay_options.chip_y + chip_bh * 0.5;
+                let (chip_draw_w, chip_draw_h) = if let Some(chip) = &state.custom_chip_image {
+                    let cw = chip.width() as f32;
+                    let ch = chip.height() as f32;
+                    if cw > 0.0 && ch > 0.0 {
+                        let aspect = cw / ch;
+                        let target_aspect = 205.0 / 155.0;
+                        if aspect > target_aspect {
+                            (205.0 * chip_scale, (205.0 / aspect) * chip_scale)
+                        } else {
+                            ((155.0 * aspect) * chip_scale, 155.0 * chip_scale)
+                        }
+                    } else {
+                        (chip_bw, chip_bh)
+                    }
+                } else {
+                    (chip_bw, chip_bh)
+                };
+                let chip_rect = egui::Rect::from_center_size(
+                    egui::pos2(chip_cx, chip_cy),
+                    egui::vec2(chip_draw_w, chip_draw_h),
+                );
+
+                // 4. Logo hit test
+                let logo_scale = state.overlay_options.logo_scale.clamp(0.2, 5.0);
+                let logo_bw = 245.0 * logo_scale;
+                let logo_bh = 94.0 * logo_scale;
+                let logo_cx = state.overlay_options.logo_x + logo_bw * 0.5;
+                let logo_cy = state.overlay_options.logo_y + logo_bh * 0.5;
+                let (logo_draw_w, logo_draw_h) = if state.overlay_options.logo_style == LogoBadgeStyle::Transparent {
+                    if let Some(logo) = &state.custom_logo_image {
+                        let lw = logo.width() as f32;
+                        let lh = logo.height() as f32;
+                        if lw > 0.0 && lh > 0.0 {
+                            let aspect = lw / lh;
+                            let target_aspect = 245.0 / 94.0;
+                            if aspect > target_aspect {
+                                (245.0 * logo_scale, (245.0 / aspect) * logo_scale)
+                            } else {
+                                ((94.0 * aspect) * logo_scale, 94.0 * logo_scale)
+                            }
+                        } else {
+                            (logo_bw, logo_bh)
+                        }
+                    } else {
+                        (logo_bw, logo_bh)
+                    }
+                } else {
+                    (logo_bw, logo_bh)
+                };
+                let logo_rect = egui::Rect::from_center_size(
+                    egui::pos2(logo_cx, logo_cy),
+                    egui::vec2(logo_draw_w, logo_draw_h),
+                );
+
+                // 5. Wave hit test
+                let wave_scale = state.overlay_options.wave_scale.clamp(0.2, 5.0);
+                let wave_bw = 75.0 * wave_scale;
+                let wave_bh = 95.0 * wave_scale;
+                let wave_cx = state.overlay_options.wave_x + wave_bw * 0.5;
+                let wave_cy = state.overlay_options.wave_y + wave_bh * 0.5;
+                let wave_rect = egui::Rect::from_center_size(
+                    egui::pos2(wave_cx, wave_cy),
+                    egui::vec2(wave_bw, wave_bh),
+                );
+
+                if let Some(txt_idx) = text_hit {
+                    state.active_layer = ActiveTransformLayer::Details;
+                    state.selected_text_index = txt_idx;
+                } else if let Some(idx) = widget_hit {
                     state.active_layer = ActiveTransformLayer::Widget(idx);
                 } else if state.overlay_options.show_chip && chip_rect.contains(egui::pos2(cx, cy)) {
                     state.active_layer = ActiveTransformLayer::Chip;
@@ -843,8 +1002,6 @@ pub fn draw_studio_preview(
                     state.active_layer = ActiveTransformLayer::Wave;
                 } else if state.overlay_options.network != PaymentNetwork::None && logo_rect.contains(egui::pos2(cx, cy)) {
                     state.active_layer = ActiveTransformLayer::Logo;
-                } else if state.overlay_options.details.show_details && details_rect.contains(egui::pos2(cx, cy)) {
-                    state.active_layer = ActiveTransformLayer::Details;
                 } else if state.overlay_options.finish == CardFinish::CustomTexture && state.active_layer == ActiveTransformLayer::Finish {
                     // Keep finish selected
                 } else if !matches!(state.active_layer, ActiveTransformLayer::Widget(_)) && state.active_layer != ActiveTransformLayer::Finish {
@@ -879,8 +1036,11 @@ pub fn draw_studio_preview(
                         state.overlay_options.logo_y += delta.y * scale_factor;
                     }
                     ActiveTransformLayer::Details => {
-                        state.overlay_options.details.horizontal_offset = (state.overlay_options.details.horizontal_offset + (delta.x * scale_factor) as i32).clamp(-600, 600);
-                        state.overlay_options.details.vertical_offset = (state.overlay_options.details.vertical_offset + (delta.y * scale_factor) as i32).clamp(-400, 400);
+                        state.overlay_options.details.ensure_items();
+                        if let Some(item) = state.overlay_options.details.items.get_mut(state.selected_text_index) {
+                            item.x = (item.x + delta.x * scale_factor).clamp(-200.0, 1600.0);
+                            item.y = (item.y + delta.y * scale_factor).clamp(-100.0, 1100.0);
+                        }
                     }
                     ActiveTransformLayer::Widget(idx) => {
                         if let Some(w) = state.custom_widgets.get_mut(idx) {
@@ -930,7 +1090,12 @@ pub fn draw_studio_preview(
                             state.overlay_options.logo_adj.rotation = (state.overlay_options.logo_adj.rotation + rot_delta).clamp(-180.0, 180.0);
                         }
                         ActiveTransformLayer::Details => {
-                            state.overlay_options.details_adj.rotation = (state.overlay_options.details_adj.rotation + rot_delta).clamp(-180.0, 180.0);
+                            state.overlay_options.details.ensure_items();
+                            if let Some(item) = state.overlay_options.details.items.get_mut(state.selected_text_index) {
+                                let old_spacing = item.letter_spacing;
+                                let spacing_delta = if rot_delta > 0.0 { 0.25 } else { -0.25 };
+                                item.letter_spacing = (old_spacing + spacing_delta).clamp(-2.0, 20.0);
+                            }
                         }
                         ActiveTransformLayer::Widget(idx) => {
                             if let Some(w) = state.custom_widgets.get_mut(idx) {
@@ -986,11 +1151,14 @@ pub fn draw_studio_preview(
                             }
                         }
                         ActiveTransformLayer::Details => {
-                            let old_scale = state.overlay_options.details.scale;
-                            let new_scale = (old_scale * factor).clamp(0.4, 2.5);
-                            if (new_scale - old_scale).abs() > 0.001 {
-                                state.overlay_options.details.scale = new_scale;
-                                preview_changed = true;
+                            state.overlay_options.details.ensure_items();
+                            if let Some(item) = state.overlay_options.details.items.get_mut(state.selected_text_index) {
+                                let old_size = item.font_size;
+                                let new_size = (old_size * factor).clamp(10.0, 150.0);
+                                if (new_size - old_size).abs() > 0.1 {
+                                    item.font_size = new_size;
+                                    preview_changed = true;
+                                }
                             }
                         }
                         ActiveTransformLayer::Widget(idx) => {
@@ -1029,10 +1197,32 @@ pub fn draw_studio_preview(
 
             match state.active_layer {
                 ActiveTransformLayer::Chip if state.overlay_options.show_chip => {
-                    let cx = rect.left() + state.overlay_options.chip_x * canvas_to_preview;
-                    let cy = rect.top() + state.overlay_options.chip_y * canvas_to_preview;
-                    let cw = 205.0 * state.overlay_options.chip_scale * canvas_to_preview;
-                    let ch = 155.0 * state.overlay_options.chip_scale * canvas_to_preview;
+                    let scale = state.overlay_options.chip_scale.clamp(0.2, 5.0);
+                    let bw = 205.0 * scale;
+                    let bh = 155.0 * scale;
+                    let center_x = state.overlay_options.chip_x + bw * 0.5;
+                    let center_y = state.overlay_options.chip_y + bh * 0.5;
+                    let (draw_w, draw_h) = if let Some(chip) = &state.custom_chip_image {
+                        let cw = chip.width() as f32;
+                        let ch = chip.height() as f32;
+                        if cw > 0.0 && ch > 0.0 {
+                            let aspect = cw / ch;
+                            let target_aspect = 205.0 / 155.0;
+                            if aspect > target_aspect {
+                                (205.0 * scale, (205.0 / aspect) * scale)
+                            } else {
+                                ((155.0 * aspect) * scale, 155.0 * scale)
+                            }
+                        } else {
+                            (bw, bh)
+                        }
+                    } else {
+                        (bw, bh)
+                    };
+                    let cx = rect.left() + (center_x - draw_w * 0.5) * canvas_to_preview;
+                    let cy = rect.top() + (center_y - draw_h * 0.5) * canvas_to_preview;
+                    let cw = draw_w * canvas_to_preview;
+                    let ch = draw_h * canvas_to_preview;
                     let chip_box = egui::Rect::from_min_size(egui::pos2(cx, cy), egui::vec2(cw, ch));
                     painter.rect_stroke(
                         chip_box,
@@ -1042,10 +1232,15 @@ pub fn draw_studio_preview(
                     );
                 }
                 ActiveTransformLayer::Wave if state.overlay_options.show_contactless => {
-                    let wx = rect.left() + state.overlay_options.wave_x * canvas_to_preview;
-                    let wy = rect.top() + state.overlay_options.wave_y * canvas_to_preview;
-                    let ww = 75.0 * state.overlay_options.wave_scale * canvas_to_preview;
-                    let wh = 95.0 * state.overlay_options.wave_scale * canvas_to_preview;
+                    let scale = state.overlay_options.wave_scale.clamp(0.2, 5.0);
+                    let bw = 75.0 * scale;
+                    let bh = 95.0 * scale;
+                    let center_x = state.overlay_options.wave_x + bw * 0.5;
+                    let center_y = state.overlay_options.wave_y + bh * 0.5;
+                    let wx = rect.left() + (center_x - bw * 0.5) * canvas_to_preview;
+                    let wy = rect.top() + (center_y - bh * 0.5) * canvas_to_preview;
+                    let ww = bw * canvas_to_preview;
+                    let wh = bh * canvas_to_preview;
                     let wave_box = egui::Rect::from_min_size(egui::pos2(wx, wy), egui::vec2(ww, wh));
                     painter.rect_stroke(
                         wave_box,
@@ -1055,10 +1250,36 @@ pub fn draw_studio_preview(
                     );
                 }
                 ActiveTransformLayer::Logo if state.overlay_options.network != PaymentNetwork::None => {
-                    let lx = rect.left() + state.overlay_options.logo_x * canvas_to_preview;
-                    let ly = rect.top() + state.overlay_options.logo_y * canvas_to_preview;
-                    let lw = 245.0 * state.overlay_options.logo_scale * canvas_to_preview;
-                    let lh = 94.0 * state.overlay_options.logo_scale * canvas_to_preview;
+                    let scale = state.overlay_options.logo_scale.clamp(0.2, 5.0);
+                    let bw = 245.0 * scale;
+                    let bh = 94.0 * scale;
+                    let center_x = state.overlay_options.logo_x + bw * 0.5;
+                    let center_y = state.overlay_options.logo_y + bh * 0.5;
+                    let (draw_w, draw_h) = if state.overlay_options.logo_style == LogoBadgeStyle::Transparent {
+                        if let Some(logo) = &state.custom_logo_image {
+                            let lw = logo.width() as f32;
+                            let lh = logo.height() as f32;
+                            if lw > 0.0 && lh > 0.0 {
+                                let aspect = lw / lh;
+                                let target_aspect = 245.0 / 94.0;
+                                if aspect > target_aspect {
+                                    (245.0 * scale, (245.0 / aspect) * scale)
+                                } else {
+                                    ((94.0 * aspect) * scale, 94.0 * scale)
+                                }
+                            } else {
+                                (bw, bh)
+                            }
+                        } else {
+                            (bw, bh)
+                        }
+                    } else {
+                        (bw, bh)
+                    };
+                    let lx = rect.left() + (center_x - draw_w * 0.5) * canvas_to_preview;
+                    let ly = rect.top() + (center_y - draw_h * 0.5) * canvas_to_preview;
+                    let lw = draw_w * canvas_to_preview;
+                    let lh = draw_h * canvas_to_preview;
                     let logo_box = egui::Rect::from_min_size(egui::pos2(lx, ly), egui::vec2(lw, lh));
                     painter.rect_stroke(
                         logo_box,
@@ -1068,17 +1289,41 @@ pub fn draw_studio_preview(
                     );
                 }
                 ActiveTransformLayer::Details if state.overlay_options.details.show_details => {
-                    let dx = rect.left() + (120.0 + state.overlay_options.details.horizontal_offset as f32) * canvas_to_preview;
-                    let dy = rect.top() + (520.0 + state.overlay_options.details.vertical_offset as f32) * canvas_to_preview;
-                    let dw = 1100.0 * state.overlay_options.details.scale * canvas_to_preview;
-                    let dh = 320.0 * state.overlay_options.details.scale * canvas_to_preview;
-                    let details_box = egui::Rect::from_min_size(egui::pos2(dx, dy), egui::vec2(dw, dh));
-                    painter.rect_stroke(
-                        details_box,
-                        6.0,
-                        egui::Stroke::new(1.5_f32, md3::PRIMARY),
-                        egui::StrokeKind::Outside,
-                    );
+                    state.overlay_options.details.ensure_items();
+                    let ho = state.overlay_options.details.horizontal_offset as f32;
+                    let vo = state.overlay_options.details.vertical_offset as f32;
+                    let scale = if state.overlay_options.details.scale > 0.05 { state.overlay_options.details.scale } else { 1.0 };
+                    for (i, item) in state.overlay_options.details.items.iter().enumerate() {
+                        if !item.visible || item.content.is_empty() {
+                            continue;
+                        }
+                        let item_x = item.x + ho;
+                        let item_y = item.y + vo;
+                        let font_sz = item.font_size * scale;
+                        let char_w = font_sz * 0.58 + item.letter_spacing * scale;
+                        let est_w = (item.content.chars().count() as f32 * char_w).max(40.0);
+                        let est_h = font_sz * 1.15;
+                        let bx = rect.left() + item_x * canvas_to_preview;
+                        let by = rect.top() + (item_y - font_sz * 0.82) * canvas_to_preview;
+                        let bw = est_w * canvas_to_preview;
+                        let bh = est_h * canvas_to_preview;
+                        let box_rect = egui::Rect::from_min_size(egui::pos2(bx, by), egui::vec2(bw, bh));
+                        if i == state.selected_text_index {
+                            painter.rect_stroke(
+                                box_rect,
+                                3.0,
+                                egui::Stroke::new(1.5_f32, md3::PRIMARY),
+                                egui::StrokeKind::Outside,
+                            );
+                        } else {
+                            painter.rect_stroke(
+                                box_rect,
+                                2.0,
+                                egui::Stroke::new(1.0_f32, egui::Color32::from_rgba_premultiplied(200, 200, 255, 40)),
+                                egui::StrokeKind::Outside,
+                            );
+                        }
+                    }
                 }
                 ActiveTransformLayer::Finish if state.overlay_options.finish == CardFinish::CustomTexture => {
                     painter.rect_stroke(

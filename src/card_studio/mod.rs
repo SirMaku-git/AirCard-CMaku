@@ -25,6 +25,7 @@ pub struct CardStudioState {
     pub custom_font_path: Option<PathBuf>,
     pub custom_font_name: Option<String>,
     pub custom_widgets: Vec<CustomWidget>,
+    pub selected_text_index: usize,
 }
 
 impl Default for CardStudioState {
@@ -48,6 +49,7 @@ impl CardStudioState {
             custom_font_path: None,
             custom_font_name: None,
             custom_widgets: Vec::new(),
+            selected_text_index: 0,
         }
     }
 
@@ -64,6 +66,43 @@ impl CardStudioState {
         self.custom_font_name = None;
         self.custom_widgets.clear();
         self.active_layer = ActiveTransformLayer::Background;
+        self.selected_text_index = 0;
+    }
+
+    pub fn add_text_item(&mut self) -> usize {
+        self.overlay_options.details.ensure_items();
+        let next_id = self.overlay_options.details.items.iter().map(|i| i.id).max().unwrap_or(0) + 1;
+        let count = self.overlay_options.details.items.len();
+        let new_y = 350.0 + (count as f32 * 65.0) % 450.0;
+        let item = CardTextItem {
+            id: next_id,
+            label: format!("Dòng chữ #{next_id}"),
+            content: "NỘI DUNG MỚI".to_string(),
+            x: 140.0,
+            y: new_y,
+            font_size: 38.0,
+            font: CardFontPreset::ModernSans,
+            letter_spacing: 1.5,
+            is_uppercase: false,
+            visible: true,
+        };
+        self.overlay_options.details.items.push(item);
+        let idx = self.overlay_options.details.items.len() - 1;
+        self.selected_text_index = idx;
+        self.active_layer = ActiveTransformLayer::Details;
+        idx
+    }
+
+    pub fn remove_text_item(&mut self, idx: usize) {
+        self.overlay_options.details.ensure_items();
+        if idx < self.overlay_options.details.items.len() {
+            self.overlay_options.details.items.remove(idx);
+            if !self.overlay_options.details.items.is_empty() {
+                self.selected_text_index = self.selected_text_index.min(self.overlay_options.details.items.len() - 1);
+            } else {
+                self.selected_text_index = 0;
+            }
+        }
     }
 
     pub fn add_custom_widget(&mut self) -> Result<String, String> {

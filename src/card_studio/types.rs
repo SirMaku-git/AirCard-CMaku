@@ -1,4 +1,4 @@
-﻿pub const CARD_WIDTH: u32 = 1_536;
+pub const CARD_WIDTH: u32 = 1_536;
 pub const CARD_HEIGHT: u32 = 969;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
@@ -218,11 +218,46 @@ impl CardFontPreset {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CardTextItem {
+    pub id: u64,
+    pub label: String,
+    pub content: String,
+    pub x: f32,
+    pub y: f32,
+    pub font_size: f32,
+    pub font: CardFontPreset,
+    pub letter_spacing: f32,
+    pub is_uppercase: bool,
+    pub visible: bool,
+}
+
+impl Default for CardTextItem {
+    fn default() -> Self {
+        Self {
+            id: 1,
+            label: "Dòng chữ".to_string(),
+            content: "TEXT".to_string(),
+            x: 140.0,
+            y: 400.0,
+            font_size: 36.0,
+            font: CardFontPreset::ModernSans,
+            letter_spacing: 1.5,
+            is_uppercase: false,
+            visible: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CardDetails {
     pub show_details: bool,
+    #[serde(default)]
     pub card_number: String,
+    #[serde(default)]
     pub card_holder: String,
+    #[serde(default)]
     pub card_expiry: String,
+    #[serde(default)]
     pub card_type_or_bank: String,
     pub emboss_style: EmbossStyle,
     pub backdrop: TextBackdropStyle,
@@ -237,6 +272,82 @@ pub struct CardDetails {
     pub custom_font_path: Option<String>,
     #[serde(default)]
     pub custom_font_name: Option<String>,
+    #[serde(default)]
+    pub items: Vec<CardTextItem>,
+}
+
+impl CardDetails {
+    pub fn default_items() -> Vec<CardTextItem> {
+        vec![
+            CardTextItem {
+                id: 1,
+                label: "Ngân hàng / Loại thẻ".to_string(),
+                content: "Credit Card".to_string(),
+                x: 140.0,
+                y: 125.0,
+                font_size: 44.0,
+                font: CardFontPreset::ModernSans,
+                letter_spacing: 1.5,
+                is_uppercase: true,
+                visible: true,
+            },
+            CardTextItem {
+                id: 2,
+                label: "Số thẻ".to_string(),
+                content: "9704 0334 1234 1234".to_string(),
+                x: 140.0,
+                y: 580.0,
+                font_size: 58.0,
+                font: CardFontPreset::ClassicOcr,
+                letter_spacing: 3.0,
+                is_uppercase: false,
+                visible: true,
+            },
+            CardTextItem {
+                id: 3,
+                label: "Hết hạn (MM/YY)".to_string(),
+                content: "VALID THRU 09/29".to_string(),
+                x: 535.0,
+                y: 670.0,
+                font_size: 32.0,
+                font: CardFontPreset::ClassicOcr,
+                letter_spacing: 2.0,
+                is_uppercase: true,
+                visible: true,
+            },
+            CardTextItem {
+                id: 4,
+                label: "Tên chủ thẻ".to_string(),
+                content: "CARD HOLDER NAME".to_string(),
+                x: 140.0,
+                y: 775.0,
+                font_size: 42.0,
+                font: CardFontPreset::ModernSans,
+                letter_spacing: 2.0,
+                is_uppercase: true,
+                visible: true,
+            },
+        ]
+    }
+
+    pub fn ensure_items(&mut self) {
+        if self.items.is_empty() {
+            let mut list = Self::default_items();
+            if !self.card_type_or_bank.is_empty() {
+                list[0].content = self.card_type_or_bank.clone();
+            }
+            if !self.card_number.is_empty() {
+                list[1].content = self.card_number.clone();
+            }
+            if !self.card_expiry.is_empty() {
+                list[2].content = format!("VALID THRU {}", self.card_expiry);
+            }
+            if !self.card_holder.is_empty() {
+                list[3].content = self.card_holder.clone();
+            }
+            self.items = list;
+        }
+    }
 }
 
 impl Default for CardDetails {
@@ -256,6 +367,7 @@ impl Default for CardDetails {
             text_font: CardFontPreset::ModernSans,
             custom_font_path: None,
             custom_font_name: None,
+            items: Self::default_items(),
         }
     }
 }

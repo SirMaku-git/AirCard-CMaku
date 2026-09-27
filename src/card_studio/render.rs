@@ -1101,9 +1101,6 @@ pub fn draw_card_details(
     details_adj: &LayerAdjustments,
     custom_font: Option<&[u8]>,
 ) {
-    let num_font = resolve_font(details.number_font, custom_font, true);
-    let text_font = resolve_font(details.text_font, custom_font, false);
-
     let vo = details.vertical_offset as f32;
     let ho = details.horizontal_offset as f32;
     let scale = if details.scale > 0.05 { details.scale } else { 1.0 };
@@ -1114,66 +1111,93 @@ pub fn draw_card_details(
     // 2. Render all embossed details onto an intermediate layer
     let mut details_img = RgbaImage::new(CARD_WIDTH, CARD_HEIGHT);
 
-    if !details.card_type_or_bank.is_empty() {
-        draw_embossed_string_vector(
-            &mut details_img,
-            &text_font,
-            140.0 + ho,
-            125.0 + vo * 0.2,
-            &details.card_type_or_bank.to_uppercase(),
-            44.0 * scale,
-            details.emboss_style,
-            1.5 * scale,
-        );
-    }
+    if !details.items.is_empty() {
+        for item in &details.items {
+            if !item.visible || item.content.is_empty() {
+                continue;
+            }
+            let font = resolve_font(item.font, custom_font, false);
+            let text = if item.is_uppercase {
+                item.content.to_uppercase()
+            } else {
+                item.content.clone()
+            };
+            draw_embossed_string_vector(
+                &mut details_img,
+                &font,
+                item.x + ho,
+                item.y + vo,
+                &text,
+                item.font_size * scale,
+                details.emboss_style,
+                item.letter_spacing * scale,
+            );
+        }
+    } else {
+        let num_font = resolve_font(details.number_font, custom_font, true);
+        let text_font = resolve_font(details.text_font, custom_font, false);
 
-    if !details.card_number.is_empty() {
-        draw_embossed_string_vector(
-            &mut details_img,
-            &num_font,
-            140.0 + ho,
-            580.0 + vo,
-            &details.card_number,
-            58.0 * scale,
-            details.emboss_style,
-            3.0 * scale,
-        );
-    }
+        if !details.card_type_or_bank.is_empty() {
+            draw_embossed_string_vector(
+                &mut details_img,
+                &text_font,
+                140.0 + ho,
+                125.0 + vo * 0.2,
+                &details.card_type_or_bank.to_uppercase(),
+                44.0 * scale,
+                details.emboss_style,
+                1.5 * scale,
+            );
+        }
 
-    if !details.card_expiry.is_empty() {
-        draw_embossed_string_vector(
-            &mut details_img,
-            &text_font,
-            535.0 + ho,
-            672.0 + vo,
-            "VALID THRU",
-            22.0 * scale,
-            details.emboss_style,
-            1.0 * scale,
-        );
-        draw_embossed_string_vector(
-            &mut details_img,
-            &num_font,
-            680.0 + ho,
-            670.0 + vo,
-            &details.card_expiry,
-            38.0 * scale,
-            details.emboss_style,
-            2.0 * scale,
-        );
-    }
+        if !details.card_number.is_empty() {
+            draw_embossed_string_vector(
+                &mut details_img,
+                &num_font,
+                140.0 + ho,
+                580.0 + vo,
+                &details.card_number,
+                58.0 * scale,
+                details.emboss_style,
+                3.0 * scale,
+            );
+        }
 
-    if !details.card_holder.is_empty() {
-        draw_embossed_string_vector(
-            &mut details_img,
-            &text_font,
-            140.0 + ho,
-            775.0 + vo,
-            &details.card_holder.to_uppercase(),
-            42.0 * scale,
-            details.emboss_style,
-            2.0 * scale,
-        );
+        if !details.card_expiry.is_empty() {
+            draw_embossed_string_vector(
+                &mut details_img,
+                &text_font,
+                535.0 + ho,
+                672.0 + vo,
+                "VALID THRU",
+                22.0 * scale,
+                details.emboss_style,
+                1.0 * scale,
+            );
+            draw_embossed_string_vector(
+                &mut details_img,
+                &num_font,
+                680.0 + ho,
+                670.0 + vo,
+                &details.card_expiry,
+                38.0 * scale,
+                details.emboss_style,
+                2.0 * scale,
+            );
+        }
+
+        if !details.card_holder.is_empty() {
+            draw_embossed_string_vector(
+                &mut details_img,
+                &text_font,
+                140.0 + ho,
+                775.0 + vo,
+                &details.card_holder.to_uppercase(),
+                42.0 * scale,
+                details.emboss_style,
+                2.0 * scale,
+            );
+        }
     }
 
     // 3. Composite details_img onto img applying details_adj (rotation, tint, opacity, hue, sat)
