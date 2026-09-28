@@ -32,6 +32,10 @@ pub struct CardStudioState {
     pub selected_text_index: usize,
     pub save_workspace_requested: bool,
     pub load_workspace_requested: bool,
+    pub select_skin_requested: bool,
+    pub export_png_requested: bool,
+    pub skin_info: Option<String>,
+    pub can_export_png: bool,
 }
 
 impl Default for CardStudioState {
@@ -61,6 +65,10 @@ impl CardStudioState {
             selected_text_index: 0,
             save_workspace_requested: false,
             load_workspace_requested: false,
+            select_skin_requested: false,
+            export_png_requested: false,
+            skin_info: None,
+            can_export_png: false,
         }
     }
 

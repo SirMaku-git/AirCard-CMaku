@@ -13,6 +13,16 @@ fn m3_button_tonal(ui: &mut egui::Ui, label: &str) -> bool {
     ui.add(btn).clicked()
 }
 
+fn m3_button_filled(ui: &mut egui::Ui, label: &str) -> bool {
+    let btn = egui::Button::new(
+        egui::RichText::new(label).size(13.0).color(md3::ON_PRIMARY).strong(),
+    )
+    .fill(md3::PRIMARY)
+    .corner_radius(20)
+    .stroke(egui::Stroke::NONE);
+    ui.add(btn).clicked()
+}
+
 fn studio_accordion_card<R>(
     ui: &mut egui::Ui,
     id_source: &str,
@@ -142,7 +152,35 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
         true,
         Some(bg_name),
         |ui| {
-            ui.horizontal(|ui| {
+            // Background image upload & export
+            ui.horizontal_wrapped(|ui| {
+                let choose_txt = if is_vi { "🖼 Chọn ảnh nền..." } else { "🖼 Choose Image..." };
+                if m3_button_filled(ui, choose_txt) {
+                    state.select_skin_requested = true;
+                }
+                if state.can_export_png {
+                    let export_txt = if is_vi { "💾 Xuất PNG" } else { "💾 Export PNG" };
+                    if m3_button_tonal(ui, export_txt) {
+                        state.export_png_requested = true;
+                    }
+                }
+            });
+
+            if let Some(info) = &state.skin_info {
+                ui.add_space(2.0);
+                ui.label(egui::RichText::new(info).size(10.5).color(md3::PRIMARY));
+            }
+
+            let bg_hint = if is_vi {
+                "Hỗ trợ PNG, JPG, SVG, WebP (tự động căn 1536x969). Kéo chuột trong khung xem để chỉnh vị trí."
+            } else {
+                "Supports PNG, JPG, SVG, WebP (auto-scaled to 1536x969). Drag preview to reposition."
+            };
+            ui.label(egui::RichText::new(bg_hint).size(10.0).color(md3::ON_SURFACE_VARIANT));
+
+            ui.add_space(6.0);
+
+            ui.horizontal_wrapped(|ui| {
                 let bg_lbl = if is_vi { "Nền:" } else { "Background:" };
                 ui.label(egui::RichText::new(bg_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                 let cur_bg = state.overlay_options.bg_preset;
@@ -1206,7 +1244,7 @@ pub fn draw_studio_preview(
         }
 
         if response.hovered() {
-            let (scroll_x, scroll_y, shift_down) = ui.input(|i| {
+            let (scroll_x, scroll_y, shift_down, ctrl_down) = ui.input(|i| {
                 let y = if i.smooth_scroll_delta.y.abs() > 0.001 {
                     i.smooth_scroll_delta.y
                 } else {
@@ -1217,12 +1255,16 @@ pub fn draw_studio_preview(
                 } else {
                     i.raw_scroll_delta.x
                 };
-                (x, y, i.modifiers.shift)
+                (x, y, i.modifiers.shift, i.modifiers.ctrl || i.modifiers.command)
             });
 
             if shift_down {
                 let rot_input = if scroll_x.abs() > scroll_y.abs() { scroll_x } else { scroll_y };
                 if rot_input.abs() > 0.001 {
+                    ui.ctx().input_mut(|i| {
+                        i.smooth_scroll_delta = egui::Vec2::ZERO;
+                        i.raw_scroll_delta = egui::Vec2::ZERO;
+                    });
                     let rot_delta = if rot_input > 0.0 { 3.0 } else { -3.0 };
                     match state.active_layer {
                         ActiveTransformLayer::Background => {
@@ -1257,9 +1299,13 @@ pub fn draw_studio_preview(
                     }
                     preview_changed = true;
                 }
-            } else {
+            } else if ctrl_down {
                 let scroll_input = if scroll_y.abs() > scroll_x.abs() { scroll_y } else { scroll_x };
                 if scroll_input.abs() > 0.001 {
+                    ui.ctx().input_mut(|i| {
+                        i.smooth_scroll_delta = egui::Vec2::ZERO;
+                        i.raw_scroll_delta = egui::Vec2::ZERO;
+                    });
                     let factor = if scroll_input > 0.0 { 1.08 } else { 1.0 / 1.08 };
                     match state.active_layer {
                         ActiveTransformLayer::Background => {
@@ -1801,28 +1847,28 @@ pub fn draw_studio_preview(
     ui.add_space(6.0);
     let layer_hint = if is_vi {
         match state.active_layer {
-            ActiveTransformLayer::Background => "Lớp đang chọn: Nền thẻ (Kéo chuột để di chuyển • Cuộn chuột để thu phóng • Giữ Shift+Cuộn để xoay)".to_string(),
-            ActiveTransformLayer::Finish => "Lớp đang chọn: Finish Texture (Kéo chuột để di chuyển • Cuộn chuột để thu phóng • Giữ Shift+Cuộn để xoay)".to_string(),
-            ActiveTransformLayer::Chip => "Lớp đang chọn: Chip EMV (Kéo chuột để di chuyển • Cuộn chuột để đổi cỡ • Giữ Shift+Cuộn để xoay)".to_string(),
-            ActiveTransformLayer::Wave => "Lớp đang chọn: Sóng Contactless (Kéo chuột để di chuyển • Cuộn chuột để đổi cỡ • Giữ Shift+Cuộn để xoay)".to_string(),
-            ActiveTransformLayer::Logo => "Lớp đang chọn: Logo thương hiệu (Kéo chuột để di chuyển • Cuộn chuột để đổi cỡ • Giữ Shift+Cuộn để xoay)".to_string(),
-            ActiveTransformLayer::Details => "Lớp đang chọn: Thông tin dập nổi (Kéo chuột để di chuyển • Cuộn chuột để đổi cỡ • Giữ Shift+Cuộn để xoay)".to_string(),
+            ActiveTransformLayer::Background => "Lớp đang chọn: Nền thẻ (Kéo chuột để di chuyển • Ctrl+Cuộn để thu phóng • Giữ Shift+Cuộn để xoay)".to_string(),
+            ActiveTransformLayer::Finish => "Lớp đang chọn: Finish Texture (Kéo chuột để di chuyển • Ctrl+Cuộn để thu phóng • Giữ Shift+Cuộn để xoay)".to_string(),
+            ActiveTransformLayer::Chip => "Lớp đang chọn: Chip EMV (Kéo chuột để di chuyển • Ctrl+Cuộn để đổi cỡ • Giữ Shift+Cuộn để xoay)".to_string(),
+            ActiveTransformLayer::Wave => "Lớp đang chọn: Sóng Contactless (Kéo chuột để di chuyển • Ctrl+Cuộn để đổi cỡ • Giữ Shift+Cuộn để xoay)".to_string(),
+            ActiveTransformLayer::Logo => "Lớp đang chọn: Logo thương hiệu (Kéo chuột để di chuyển • Ctrl+Cuộn để đổi cỡ • Giữ Shift+Cuộn để xoay)".to_string(),
+            ActiveTransformLayer::Details => "Lớp đang chọn: Thông tin dập nổi (Kéo chuột để di chuyển • Ctrl+Cuộn để đổi cỡ • Giữ Shift+Cuộn để xoay)".to_string(),
             ActiveTransformLayer::Widget(idx) => {
                 let name = state.custom_widgets.get(idx).map(|w| w.data.name.as_str()).unwrap_or("Widget");
-                format!("Lớp đang chọn: Widget \"{}\" (Kéo chuột để di chuyển • Cuộn chuột để đổi cỡ • Giữ Shift+Cuộn để xoay)", name)
+                format!("Lớp đang chọn: Widget \"{}\" (Kéo chuột để di chuyển • Ctrl+Cuộn để đổi cỡ • Giữ Shift+Cuộn để xoay)", name)
             }
         }
     } else {
         match state.active_layer {
-            ActiveTransformLayer::Background => "Active Layer: Background (Drag card to pan • Scroll to zoom • Shift+Scroll to rotate)".to_string(),
-            ActiveTransformLayer::Finish => "Active Layer: Finish Texture (Drag card to pan • Scroll to zoom • Shift+Scroll to rotate)".to_string(),
-            ActiveTransformLayer::Chip => "Active Layer: EMV Chip (Drag to reposition • Scroll to resize • Shift+Scroll to rotate)".to_string(),
-            ActiveTransformLayer::Wave => "Active Layer: Contactless Wave (Drag to reposition • Scroll to resize • Shift+Scroll to rotate)".to_string(),
-            ActiveTransformLayer::Logo => "Active Layer: Brand Logo (Drag to reposition • Scroll to resize • Shift+Scroll to rotate)".to_string(),
-            ActiveTransformLayer::Details => "Active Layer: Card Details (Drag to reposition • Scroll to resize • Shift+Scroll to rotate)".to_string(),
+            ActiveTransformLayer::Background => "Active Layer: Background (Drag card to pan • Ctrl+Scroll to zoom • Shift+Scroll to rotate)".to_string(),
+            ActiveTransformLayer::Finish => "Active Layer: Finish Texture (Drag card to pan • Ctrl+Scroll to zoom • Shift+Scroll to rotate)".to_string(),
+            ActiveTransformLayer::Chip => "Active Layer: EMV Chip (Drag to reposition • Ctrl+Scroll to resize • Shift+Scroll to rotate)".to_string(),
+            ActiveTransformLayer::Wave => "Active Layer: Contactless Wave (Drag to reposition • Ctrl+Scroll to resize • Shift+Scroll to rotate)".to_string(),
+            ActiveTransformLayer::Logo => "Active Layer: Brand Logo (Drag to reposition • Ctrl+Scroll to resize • Shift+Scroll to rotate)".to_string(),
+            ActiveTransformLayer::Details => "Active Layer: Card Details (Drag to reposition • Ctrl+Scroll to resize • Shift+Scroll to rotate)".to_string(),
             ActiveTransformLayer::Widget(idx) => {
                 let name = state.custom_widgets.get(idx).map(|w| w.data.name.as_str()).unwrap_or("Widget");
-                format!("Active Layer: Widget \"{}\" (Drag to reposition • Scroll to resize • Shift+Scroll to rotate)", name)
+                format!("Active Layer: Widget \"{}\" (Drag to reposition • Ctrl+Scroll to resize • Shift+Scroll to rotate)", name)
             }
         }
     };

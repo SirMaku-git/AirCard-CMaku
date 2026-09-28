@@ -354,6 +354,9 @@ impl AirCardApp {
                 self.crop_focus = [0.5, 0.5];
                 self.crop_dirty = false;
                 self.skin = Some(skin);
+                self.card_studio.overlay_options.bg_preset = crate::card_studio::CardBackgroundPreset::CustomImage;
+                self.card_studio.active_layer = crate::card_studio::ActiveTransformLayer::Background;
+                self.recompute_studio_skin(ctx);
             }
             Err(error) => {
                 self.add_log(format!("Image decode failed: {error:#}"));
@@ -1579,32 +1582,27 @@ impl AirCardApp {
                         });
                 }
 
-                ui.add_space(16.0);
-
-                // Card Skin
-                ui.label(egui::RichText::new(language.text("Card Skin Artwork")).strong().size(12.0).color(md3::ON_SURFACE));
-                ui.label(egui::RichText::new(language.text("PNG, JPG, WebP - auto-scaled to 1536x969")).size(11.0).color(md3::ON_SURFACE_VARIANT));
-                ui.label(egui::RichText::new(language.text("Drag inside the preview to reposition the crop.")).size(11.0).color(md3::ON_SURFACE_VARIANT));
-                ui.add_space(4.0);
+                ui.add_space(12.0);
                 let is_vi = self.language == Language::Vietnamese;
-                ui.horizontal(|ui| {
-                    if m3_button_filled(ui, language.text("Choose Image...")) { self.select_skin(ctx); }
-                    if self.skin.is_some() || self.studio_rgba.is_some() {
-                        if m3_button_tonal(ui, language.text("Export PNG")) { self.save_prepared_png(); }
-                    }
-                    if m3_button_tonal(ui, if is_vi { "💾 Lưu .wcm" } else { "💾 Save .wcm" }) {
-                        self.save_workspace();
-                    }
-                    if m3_button_tonal(ui, if is_vi { "📂 Mở .wcm" } else { "📂 Open .wcm" }) {
-                        self.load_workspace(ctx);
-                    }
+                self.card_studio.can_export_png = self.skin.is_some() || self.studio_rgba.is_some();
+                self.card_studio.skin_info = self.skin.as_ref().map(|skin| {
+                    let fname = self.source_path.as_ref()
+                        .and_then(|p| p.file_name()).and_then(|n| n.to_str()).unwrap_or("image");
+                    format!("{} • 1536x969 • {:.0} KB", fname, skin.png.len() as f32 / 1024.0)
                 });
 
-                ui.add_space(8.0);
                 if self.card_studio.draw_sidebar(ui, is_vi) {
                     self.recompute_studio_skin(ctx);
                 }
 
+                if self.card_studio.select_skin_requested {
+                    self.card_studio.select_skin_requested = false;
+                    self.select_skin(ctx);
+                }
+                if self.card_studio.export_png_requested {
+                    self.card_studio.export_png_requested = false;
+                    self.save_prepared_png();
+                }
                 if self.card_studio.save_workspace_requested {
                     self.card_studio.save_workspace_requested = false;
                     self.save_workspace();
@@ -1612,13 +1610,6 @@ impl AirCardApp {
                 if self.card_studio.load_workspace_requested {
                     self.card_studio.load_workspace_requested = false;
                     self.load_workspace(ctx);
-                }
-
-                if let Some(skin) = &self.skin {
-                    ui.add_space(4.0);
-                    let fname = self.source_path.as_ref()
-                        .and_then(|p| p.file_name()).and_then(|n| n.to_str()).unwrap_or("image");
-                    ui.label(egui::RichText::new(format!("{} - 1536x969 - {:.0} KB", fname, skin.png.len() as f32 / 1024.0)).size(11.0).color(md3::PRIMARY));
                 }
 
                 ui.add_space(16.0);
