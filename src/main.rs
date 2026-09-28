@@ -1,4 +1,4 @@
-﻿#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod afc;
 mod airlift;
@@ -18,8 +18,8 @@ fn main() -> eframe::Result<()> {
     let app_title = format!("AirCard-CMaku v{}", env!("CARGO_PKG_VERSION"));
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([980.0, 640.0])
-            .with_min_inner_size([880.0, 580.0])
+            .with_inner_size([1040.0, 700.0])
+            .with_min_inner_size([850.0, 550.0])
             .with_title(&app_title),
         ..Default::default()
     };

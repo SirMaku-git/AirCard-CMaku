@@ -919,6 +919,125 @@ impl AirCardApp {
             self.task_rx = None;
         }
     }
+
+    fn draw_header_device_controls(&mut self, ui: &mut egui::Ui) {
+        let language = self.language;
+        let mut next_language = self.language;
+        ui.label(
+            egui::RichText::new(language.text("Language"))
+                .size(11.0)
+                .color(md3::ON_SURFACE_VARIANT),
+        );
+        egui::ComboBox::from_id_salt("language_combo")
+            .selected_text(language.option_label(next_language))
+            .width(115.0)
+            .show_ui(ui, |ui| {
+                ui.selectable_value(
+                    &mut next_language,
+                    Language::English,
+                    language.option_label(Language::English),
+                );
+                ui.selectable_value(
+                    &mut next_language,
+                    Language::SimplifiedChinese,
+                    language.option_label(Language::SimplifiedChinese),
+                );
+                ui.selectable_value(
+                    &mut next_language,
+                    Language::Vietnamese,
+                    language.option_label(Language::Vietnamese),
+                );
+            });
+        if next_language != self.language {
+            self.language = next_language;
+            self.language.save();
+            self.status_msg = self.language.text("Language changed.").to_string();
+        }
+
+        ui.add_space(4.0);
+        if m3_button_outlined(ui, language.text("Refresh")) {
+            self.refresh_devices();
+        }
+        ui.add_space(4.0);
+        let controls_enabled = !self.is_busy && !self.scanning_syslog;
+        let mut next_mode = self.connection_mode;
+        ui.add_enabled_ui(controls_enabled, |ui| {
+            egui::ComboBox::from_id_salt("connection_mode_combo")
+                .selected_text(language.text(next_mode.label()))
+                .width(135.0)
+                .show_ui(ui, |ui| {
+                    for mode in ConnectionMode::ALL {
+                        ui.selectable_value(
+                            &mut next_mode,
+                            mode,
+                            language.text(mode.label()),
+                        );
+                    }
+                });
+        });
+        if next_mode != self.connection_mode {
+            self.connection_mode = next_mode;
+            self.add_log(format!(
+                "Transport mode changed to {}.",
+                self.connection_mode.label()
+            ));
+            self.status_msg = format!(
+                "{}: {}",
+                language.text("Transport mode"),
+                language.text(self.connection_mode.label())
+            );
+        }
+
+        ui.add_space(4.0);
+        let mut next_udid = self.selected_udid.clone();
+        let selected_label = self
+            .devices
+            .iter()
+            .find(|device| Some(&device.udid) == self.selected_udid.as_ref())
+            .map(|device| format!("{} [{}]", device.name, device.transport_summary()))
+            .unwrap_or_else(|| language.text("No device").to_string());
+        ui.add_enabled_ui(controls_enabled && !self.devices.is_empty(), |ui| {
+            egui::ComboBox::from_id_salt("device_selector_combo")
+                .selected_text(selected_label)
+                .width(165.0)
+                .show_ui(ui, |ui| {
+                    for device in &self.devices {
+                        ui.selectable_value(
+                            &mut next_udid,
+                            Some(device.udid.clone()),
+                            format!("{} [{}]", device.name, device.transport_summary()),
+                        );
+                    }
+                });
+        });
+        if next_udid != self.selected_udid {
+            self.selected_udid = next_udid;
+            if let Some(selected) = self.selected_udid.clone() {
+                self.add_log(format!("Selected device: {}", selected));
+            }
+        }
+
+        ui.add_space(4.0);
+        let connection_ready = self.selected_transport_available();
+        draw_status_dot(
+            ui,
+            if connection_ready { md3::SUCCESS } else { md3::ERROR },
+        );
+        ui.label(
+            egui::RichText::new(if connection_ready {
+                language.text("Ready")
+            } else {
+                language.text("Unavailable")
+            })
+            .size(12.0)
+            .color(if connection_ready {
+                md3::ON_SURFACE
+            } else {
+                md3::ON_SURFACE_VARIANT
+            }),
+        )
+        .on_hover_text(&self.apple_status);
+    }
 }
 
 pub mod md3 {
@@ -1186,150 +1305,70 @@ impl eframe::App for AirCardApp {
         }
 
         // Top bar
+        // Top bar (Responsive: 2-row when width < 1140px, single row when wide)
         egui::TopBottomPanel::top("header")
             .frame(
                 egui::Frame::new()
                     .fill(md3::SURFACE)
-                    .inner_margin(egui::Margin::symmetric(20, 10)),
+                    .inner_margin(egui::Margin::symmetric(16, 8)),
             )
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new("AirCard-CMaku")
-                            .strong()
-                            .size(18.0)
-                            .color(md3::ON_SURFACE),
-                    );
-                    ui.label(
-                        egui::RichText::new(concat!("v", env!("CARGO_PKG_VERSION")))
-                            .size(11.0)
-                            .color(md3::ON_SURFACE_VARIANT),
-                    );
-
-                    ui.add_space(20.0);
-                    m3_tab(ui, &mut self.current_tab, AppTab::Wallet, language.text("Wallet"));
-                    m3_tab(ui, &mut self.current_tab, AppTab::Passcode, language.text("Passcode"));
-                    m3_tab(ui, &mut self.current_tab, AppTab::Help, language.text("Help"));
-                    m3_tab(ui, &mut self.current_tab, AppTab::Sources, language.text("Sources"));
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let mut next_language = self.language;
+                let avail_w = ui.available_width();
+                if avail_w < 1140.0 {
+                    // Row 1: App Title & Version (left) + Device & Language controls (right)
+                    ui.horizontal(|ui| {
                         ui.label(
-                            egui::RichText::new(language.text("Language"))
+                            egui::RichText::new("AirCard-CMaku")
+                                .strong()
+                                .size(17.0)
+                                .color(md3::ON_SURFACE),
+                        );
+                        ui.label(
+                            egui::RichText::new(concat!("v", env!("CARGO_PKG_VERSION")))
                                 .size(11.0)
                                 .color(md3::ON_SURFACE_VARIANT),
                         );
-                        egui::ComboBox::from_id_salt("language_combo")
-                            .selected_text(language.option_label(next_language))
-                            .width(125.0)
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(
-                                    &mut next_language,
-                                    Language::English,
-                                    language.option_label(Language::English),
-                                );
-                                ui.selectable_value(
-                                    &mut next_language,
-                                    Language::SimplifiedChinese,
-                                    language.option_label(Language::SimplifiedChinese),
-                                );
-                                ui.selectable_value(
-                                    &mut next_language,
-                                    Language::Vietnamese,
-                                    language.option_label(Language::Vietnamese),
-                                );
-                            });
-                        if next_language != self.language {
-                            self.language = next_language;
-                            self.language.save();
-                            self.status_msg = self.language.text("Language changed.").to_string();
-                        }
 
-                        ui.add_space(4.0);
-                        if m3_button_outlined(ui, language.text("Refresh")) {
-                            self.refresh_devices();
-                        }
-                        ui.add_space(4.0);
-                        let controls_enabled = !self.is_busy && !self.scanning_syslog;
-                        let mut next_mode = self.connection_mode;
-                        ui.add_enabled_ui(controls_enabled, |ui| {
-                            egui::ComboBox::from_id_salt("connection_mode_combo")
-                                .selected_text(language.text(next_mode.label()))
-                                .width(145.0)
-                                .show_ui(ui, |ui| {
-                                    for mode in ConnectionMode::ALL {
-                                        ui.selectable_value(
-                                            &mut next_mode,
-                                            mode,
-                                            language.text(mode.label()),
-                                        );
-                                    }
-                                });
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            self.draw_header_device_controls(ui);
                         });
-                        if next_mode != self.connection_mode {
-                            self.connection_mode = next_mode;
-                            self.add_log(format!(
-                                "Transport mode changed to {}.",
-                                self.connection_mode.label()
-                            ));
-                            self.status_msg = format!(
-                                "{}: {}",
-                                language.text("Transport mode"),
-                                language.text(self.connection_mode.label())
-                            );
-                        }
+                    });
 
-                        ui.add_space(4.0);
-                        let mut next_udid = self.selected_udid.clone();
-                        let selected_label = self
-                            .devices
-                            .iter()
-                            .find(|device| Some(&device.udid) == self.selected_udid.as_ref())
-                            .map(|device| format!("{} [{}]", device.name, device.transport_summary()))
-                            .unwrap_or_else(|| language.text("No device").to_string());
-                        ui.add_enabled_ui(controls_enabled && !self.devices.is_empty(), |ui| {
-                            egui::ComboBox::from_id_salt("device_selector_combo")
-                                .selected_text(selected_label)
-                                .width(185.0)
-                                .show_ui(ui, |ui| {
-                                    for device in &self.devices {
-                                        ui.selectable_value(
-                                            &mut next_udid,
-                                            Some(device.udid.clone()),
-                                            format!("{} [{}]", device.name, device.transport_summary()),
-                                        );
-                                    }
-                                });
-                        });
-                        if next_udid != self.selected_udid {
-                            self.selected_udid = next_udid;
-                            if let Some(selected) = self.selected_udid.clone() {
-                                self.add_log(format!("Selected device: {}", selected));
-                            }
-                        }
+                    ui.add_space(6.0);
 
-                        ui.add_space(4.0);
-                        let connection_ready = self.selected_transport_available();
-                        draw_status_dot(
-                            ui,
-                            if connection_ready { md3::SUCCESS } else { md3::ERROR },
+                    // Row 2: Navigation tabs with zero risk of collision
+                    ui.horizontal(|ui| {
+                        m3_tab(ui, &mut self.current_tab, AppTab::Wallet, language.text("Wallet"));
+                        m3_tab(ui, &mut self.current_tab, AppTab::Passcode, language.text("Passcode"));
+                        m3_tab(ui, &mut self.current_tab, AppTab::Help, language.text("Help"));
+                        m3_tab(ui, &mut self.current_tab, AppTab::Sources, language.text("Sources"));
+                    });
+                } else {
+                    // Wide window: Single unified row
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new("AirCard-CMaku")
+                                .strong()
+                                .size(18.0)
+                                .color(md3::ON_SURFACE),
                         );
                         ui.label(
-                            egui::RichText::new(if connection_ready {
-                                language.text("Ready")
-                            } else {
-                                language.text("Unavailable")
-                            })
-                                .size(12.0)
-                                .color(if connection_ready {
-                                    md3::ON_SURFACE
-                                } else {
-                                    md3::ON_SURFACE_VARIANT
-                                }),
-                        )
-                        .on_hover_text(&self.apple_status);
+                            egui::RichText::new(concat!("v", env!("CARGO_PKG_VERSION")))
+                                .size(11.0)
+                                .color(md3::ON_SURFACE_VARIANT),
+                        );
+
+                        ui.add_space(20.0);
+                        m3_tab(ui, &mut self.current_tab, AppTab::Wallet, language.text("Wallet"));
+                        m3_tab(ui, &mut self.current_tab, AppTab::Passcode, language.text("Passcode"));
+                        m3_tab(ui, &mut self.current_tab, AppTab::Help, language.text("Help"));
+                        m3_tab(ui, &mut self.current_tab, AppTab::Sources, language.text("Sources"));
+
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            self.draw_header_device_controls(ui);
+                        });
                     });
-                });
+                }
             });
 
         // Status bar

@@ -915,7 +915,7 @@ pub fn draw_studio_preview(
     let mut preview_changed = false;
 
     // Multi-layer control: Layer Selector Bar
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         let layer_hdr = if is_vi { "Lớp:" } else { "Layer:" };
         ui.label(egui::RichText::new(layer_hdr).strong().size(11.0).color(md3::ON_SURFACE));
         let layer_buttons: &[(ActiveTransformLayer, &str)] = if is_vi {
@@ -1591,7 +1591,7 @@ pub fn draw_studio_preview(
             ui.add_space(6.0);
 
             // Row 1: RGB Color Picker & Tint Intensity & Opacity
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 let rgb_lbl = if is_vi { "Màu phủ RGB:" } else { "RGB Tint:" };
                 ui.label(egui::RichText::new(rgb_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                 let mut srgb = [adj.tint_color[0], adj.tint_color[1], adj.tint_color[2]];
@@ -1611,7 +1611,7 @@ pub fn draw_studio_preview(
                     inspector_changed = true;
                 }
 
-                let op_lbl = if is_vi { "Độ mờ/Đậm nhạt:" } else { "Opacity:" };
+                let op_lbl = if is_vi { "Độ mờ:" } else { "Opacity:" };
                 ui.label(egui::RichText::new(op_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                 let mut op_pct = (adj.opacity * 100.0).round() as i32;
                 if ui.add(egui::Slider::new(&mut op_pct, 0..=100).suffix("%")).changed() {
@@ -1623,7 +1623,7 @@ pub fn draw_studio_preview(
             ui.add_space(4.0);
 
             // Row 2: Hue Shift & Saturation
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 let hue_lbl = if is_vi { "Chuyển sắc độ (Hue):" } else { "Hue Shift:" };
                 ui.label(egui::RichText::new(hue_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                 let mut hue_deg = adj.hue_shift.round() as i32;
@@ -1644,7 +1644,7 @@ pub fn draw_studio_preview(
             ui.add_space(4.0);
 
             // Row 3: Rotation slider & quick angle presets
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 let rot_lbl = if is_vi { "Xoay (Rotation):" } else { "Rotation:" };
                 ui.label(egui::RichText::new(rot_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                 let mut cur_rot = adj.rotation.round() as i32;
@@ -1670,7 +1670,7 @@ pub fn draw_studio_preview(
                 let sel_idx = state.selected_text_index.min(state.overlay_options.details.items.len().saturating_sub(1));
 
                 // Style & Global Scale
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     let style_lbl = if is_vi { "Hiệu ứng chữ:" } else { "Emboss Style:" };
                     ui.label(egui::RichText::new(style_lbl).size(11.0).color(md3::ON_SURFACE_VARIANT));
                     egui::ComboBox::from_id_salt("inspector_details_style")
@@ -1701,7 +1701,7 @@ pub fn draw_studio_preview(
                 // Row 2: Selected Text Item Content & Backdrop
                 if let Some(item) = state.overlay_options.details.items.get_mut(sel_idx) {
                     ui.add_space(3.0);
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         let item_badge = format!("#{}", sel_idx + 1);
                         ui.label(egui::RichText::new(item_badge).strong().size(11.0).color(md3::PRIMARY));
 
@@ -1732,9 +1732,9 @@ pub fn draw_studio_preview(
                         }
                     });
 
-                                    // Row 3: Font, Font Size, X, Y, Letter Spacing
+                    // Row 3: Font, Font Size, X, Y, Letter Spacing
                     ui.add_space(3.0);
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         ui.label(egui::RichText::new(if is_vi { "Font:" } else { "Font:" }).size(11.0).color(md3::ON_SURFACE_VARIANT));
                         egui::ComboBox::from_id_salt("inspector_item_font")
                             .width(135.0)
