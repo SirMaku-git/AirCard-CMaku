@@ -97,19 +97,74 @@ fn studio_accordion_card<R>(
 pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi: bool) -> bool {
     let mut overlay_changed = false;
 
-    // Top Header: Title and Reset button
+    // Keyboard shortcuts for Undo (Ctrl+Z) and Redo (Ctrl+Y or Ctrl+Shift+Z)
+    let (do_undo, do_redo) = ui.input_mut(|i| {
+        let typing = i.focused;
+        if typing {
+            return (false, false);
+        }
+        let undo = i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z);
+        let redo = i.consume_key(egui::Modifiers::COMMAND, egui::Key::Y)
+            || i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::Z);
+        (undo, redo)
+    });
+
+    if do_undo && state.undo() {
+        overlay_changed = true;
+    }
+    if do_redo && state.redo() {
+        overlay_changed = true;
+    }
+
+    if ui.input(|i| i.pointer.any_pressed()) {
+        state.record_pre_interaction();
+    }
+
+    // Top Header: Title and Reset / Undo / Redo buttons
     ui.horizontal(|ui| {
         let studio_lbl = if is_vi { "Card Studio & Tùy biến" } else { "Card Studio & Customization" };
         ui.label(egui::RichText::new(studio_lbl).strong().size(12.0).color(md3::ON_SURFACE));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let reset_def_lbl = if is_vi { "↺ Khôi phục mặc định" } else { "↺ Reset to Default" };
-            let reset_def_hover = if is_vi { "Khôi phục toàn bộ tùy biến thẻ, lớp phủ và logo về mặc định" } else { "Reset all card customizations, overlays, and logos to default" };
+            let reset_def_hover = if is_vi { "Khôi phục toàn bộ tùy biến thẻ, lớp phủ và logo về mặc định (có thể Undo)" } else { "Reset all card customizations, overlays, and logos to default (can Undo)" };
             if ui.button(egui::RichText::new(reset_def_lbl).size(10.5).color(md3::PRIMARY))
                 .on_hover_text(reset_def_hover)
                 .clicked()
             {
                 state.reset_to_defaults();
                 overlay_changed = true;
+            }
+
+            ui.add_space(4.0);
+
+            // Redo button (RTL layout: appears to the left of Reset)
+            let can_redo = state.can_redo();
+            let redo_text = if is_vi { "↻ Làm lại" } else { "↻ Redo" };
+            let redo_hover = if is_vi { "Làm lại thao tác vừa hoàn tác (Ctrl+Y)" } else { "Redo last undone change (Ctrl+Y)" };
+            let redo_fg = if can_redo { md3::ON_SURFACE } else { md3::OUTLINE_VARIANT };
+            if ui.add_enabled(can_redo, egui::Button::new(egui::RichText::new(redo_text).size(10.5).color(redo_fg)).corner_radius(4))
+                .on_hover_text(redo_hover)
+                .clicked()
+            {
+                if state.redo() {
+                    overlay_changed = true;
+                }
+            }
+
+            ui.add_space(2.0);
+
+            // Undo button (RTL layout: appears to the left of Redo)
+            let can_undo = state.can_undo();
+            let undo_text = if is_vi { "↺ Hoàn tác" } else { "↺ Undo" };
+            let undo_hover = if is_vi { "Hoàn tác thao tác trước (Ctrl+Z)" } else { "Undo previous change (Ctrl+Z)" };
+            let undo_fg = if can_undo { md3::ON_SURFACE } else { md3::OUTLINE_VARIANT };
+            if ui.add_enabled(can_undo, egui::Button::new(egui::RichText::new(undo_text).size(10.5).color(undo_fg)).corner_radius(4))
+                .on_hover_text(undo_hover)
+                .clicked()
+            {
+                if state.undo() {
+                    overlay_changed = true;
+                }
             }
         });
     });
@@ -940,6 +995,10 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
         },
     );
 
+    if ui.input(|i| i.pointer.any_released()) {
+        state.commit_interaction();
+    }
+
     overlay_changed
 }
 
@@ -951,6 +1010,25 @@ pub fn draw_studio_preview(
     is_vi: bool,
 ) -> bool {
     let mut preview_changed = false;
+
+    // Keyboard shortcuts for Undo (Ctrl+Z) and Redo (Ctrl+Y or Ctrl+Shift+Z)
+    let (do_undo, do_redo) = ui.input_mut(|i| {
+        let typing = i.focused;
+        if typing {
+            return (false, false);
+        }
+        let undo = i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z);
+        let redo = i.consume_key(egui::Modifiers::COMMAND, egui::Key::Y)
+            || i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::Z);
+        (undo, redo)
+    });
+
+    if do_undo && state.undo() {
+        preview_changed = true;
+    }
+    if do_redo && state.redo() {
+        preview_changed = true;
+    }
 
     // Multi-layer control: Layer Selector Bar
     ui.horizontal_wrapped(|ui| {
@@ -1200,6 +1278,10 @@ pub fn draw_studio_preview(
             }
         }
 
+        if response.drag_started() {
+            state.record_pre_interaction();
+        }
+
         if response.dragged_by(egui::PointerButton::Primary) {
             let delta = response.drag_delta();
             if delta.x != 0.0 || delta.y != 0.0 {
@@ -1243,6 +1325,10 @@ pub fn draw_studio_preview(
             }
         }
 
+        if response.drag_stopped() {
+            state.commit_interaction();
+        }
+
         if response.hovered() {
             let (scroll_x, scroll_y, shift_down, ctrl_down) = ui.input(|i| {
                 let y = if i.smooth_scroll_delta.y.abs() > 0.001 {
@@ -1261,6 +1347,12 @@ pub fn draw_studio_preview(
             if shift_down {
                 let rot_input = if scroll_x.abs() > scroll_y.abs() { scroll_x } else { scroll_y };
                 if rot_input.abs() > 0.001 {
+                    let now = ui.input(|i| i.time);
+                    if now - state.last_interaction_time > 0.4 {
+                        state.push_undo_checkpoint();
+                    }
+                    state.last_interaction_time = now;
+
                     ui.ctx().input_mut(|i| {
                         i.smooth_scroll_delta = egui::Vec2::ZERO;
                         i.raw_scroll_delta = egui::Vec2::ZERO;
@@ -1302,6 +1394,12 @@ pub fn draw_studio_preview(
             } else if ctrl_down {
                 let scroll_input = if scroll_y.abs() > scroll_x.abs() { scroll_y } else { scroll_x };
                 if scroll_input.abs() > 0.001 {
+                    let now = ui.input(|i| i.time);
+                    if now - state.last_interaction_time > 0.4 {
+                        state.push_undo_checkpoint();
+                    }
+                    state.last_interaction_time = now;
+
                     ui.ctx().input_mut(|i| {
                         i.smooth_scroll_delta = egui::Vec2::ZERO;
                         i.raw_scroll_delta = egui::Vec2::ZERO;

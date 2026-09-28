@@ -32,6 +32,7 @@ impl Default for CustomWidgetData {
     }
 }
 
+#[derive(Clone)]
 pub struct CustomWidget {
     pub data: CustomWidgetData,
     pub image: image::RgbaImage,

@@ -36,6 +36,63 @@ pub struct CardStudioState {
     pub export_png_requested: bool,
     pub skin_info: Option<String>,
     pub can_export_png: bool,
+    pub undo_stack: Vec<StudioSnapshot>,
+    pub redo_stack: Vec<StudioSnapshot>,
+    pub pre_interaction_snapshot: Option<StudioSnapshot>,
+    pub last_interaction_time: f64,
+}
+
+pub const MAX_UNDO_STEPS: usize = 30;
+
+#[derive(Clone)]
+pub struct StudioSnapshot {
+    pub overlay_options: CardOverlayOptions,
+    pub custom_widgets: Vec<CustomWidget>,
+    pub active_layer: ActiveTransformLayer,
+    pub selected_text_index: usize,
+    pub custom_logo_image: Option<RgbaImage>,
+    pub custom_logo_path: Option<PathBuf>,
+    pub custom_logo_raw: Option<(Vec<u8>, String)>,
+    pub custom_chip_image: Option<RgbaImage>,
+    pub custom_chip_path: Option<PathBuf>,
+    pub custom_chip_raw: Option<(Vec<u8>, String)>,
+    pub custom_finish_image: Option<RgbaImage>,
+    pub custom_finish_path: Option<PathBuf>,
+    pub custom_finish_raw: Option<(Vec<u8>, String)>,
+    pub custom_font_bytes: Option<Vec<u8>>,
+    pub custom_font_path: Option<PathBuf>,
+    pub custom_font_name: Option<String>,
+}
+
+impl StudioSnapshot {
+    pub fn is_visually_equal(&self, other: &StudioSnapshot) -> bool {
+        if self.overlay_options != other.overlay_options {
+            return false;
+        }
+        if self.active_layer != other.active_layer {
+            return false;
+        }
+        if self.selected_text_index != other.selected_text_index {
+            return false;
+        }
+        if self.custom_widgets.len() != other.custom_widgets.len() {
+            return false;
+        }
+        for (w1, w2) in self.custom_widgets.iter().zip(other.custom_widgets.iter()) {
+            if w1.data != w2.data {
+                return false;
+            }
+        }
+        if self.custom_logo_path != other.custom_logo_path
+            || self.custom_chip_path != other.custom_chip_path
+            || self.custom_finish_path != other.custom_finish_path
+            || self.custom_font_path != other.custom_font_path
+            || self.custom_font_name != other.custom_font_name
+        {
+            return false;
+        }
+        true
+    }
 }
 
 impl Default for CardStudioState {
@@ -69,10 +126,121 @@ impl CardStudioState {
             export_png_requested: false,
             skin_info: None,
             can_export_png: false,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            pre_interaction_snapshot: None,
+            last_interaction_time: 0.0,
         }
     }
 
+    pub fn create_snapshot(&self) -> StudioSnapshot {
+        StudioSnapshot {
+            overlay_options: self.overlay_options.clone(),
+            custom_widgets: self.custom_widgets.clone(),
+            active_layer: self.active_layer,
+            selected_text_index: self.selected_text_index,
+            custom_logo_image: self.custom_logo_image.clone(),
+            custom_logo_path: self.custom_logo_path.clone(),
+            custom_logo_raw: self.custom_logo_raw.clone(),
+            custom_chip_image: self.custom_chip_image.clone(),
+            custom_chip_path: self.custom_chip_path.clone(),
+            custom_chip_raw: self.custom_chip_raw.clone(),
+            custom_finish_image: self.custom_finish_image.clone(),
+            custom_finish_path: self.custom_finish_path.clone(),
+            custom_finish_raw: self.custom_finish_raw.clone(),
+            custom_font_bytes: self.custom_font_bytes.clone(),
+            custom_font_path: self.custom_font_path.clone(),
+            custom_font_name: self.custom_font_name.clone(),
+        }
+    }
+
+    pub fn apply_snapshot(&mut self, snapshot: StudioSnapshot) {
+        self.overlay_options = snapshot.overlay_options;
+        self.custom_widgets = snapshot.custom_widgets;
+        self.active_layer = snapshot.active_layer;
+        self.selected_text_index = snapshot.selected_text_index;
+        self.custom_logo_image = snapshot.custom_logo_image;
+        self.custom_logo_path = snapshot.custom_logo_path;
+        self.custom_logo_raw = snapshot.custom_logo_raw;
+        self.custom_chip_image = snapshot.custom_chip_image;
+        self.custom_chip_path = snapshot.custom_chip_path;
+        self.custom_chip_raw = snapshot.custom_chip_raw;
+        self.custom_finish_image = snapshot.custom_finish_image;
+        self.custom_finish_path = snapshot.custom_finish_path;
+        self.custom_finish_raw = snapshot.custom_finish_raw;
+        self.custom_font_bytes = snapshot.custom_font_bytes;
+        self.custom_font_path = snapshot.custom_font_path;
+        self.custom_font_name = snapshot.custom_font_name;
+    }
+
+    pub fn push_undo_checkpoint(&mut self) {
+        let current = self.create_snapshot();
+        if let Some(last) = self.undo_stack.last() {
+            if last.is_visually_equal(&current) {
+                return;
+            }
+        }
+        self.undo_stack.push(current);
+        if self.undo_stack.len() > MAX_UNDO_STEPS {
+            self.undo_stack.remove(0);
+        }
+        self.redo_stack.clear();
+        self.pre_interaction_snapshot = None;
+    }
+
+    pub fn record_pre_interaction(&mut self) {
+        if self.pre_interaction_snapshot.is_none() {
+            self.pre_interaction_snapshot = Some(self.create_snapshot());
+        }
+    }
+
+    pub fn commit_interaction(&mut self) {
+        if let Some(prev) = self.pre_interaction_snapshot.take() {
+            let current = self.create_snapshot();
+            if !prev.is_visually_equal(&current) {
+                self.undo_stack.push(prev);
+                if self.undo_stack.len() > MAX_UNDO_STEPS {
+                    self.undo_stack.remove(0);
+                }
+                self.redo_stack.clear();
+            }
+        }
+    }
+
+    pub fn undo(&mut self) -> bool {
+        if let Some(snapshot) = self.undo_stack.pop() {
+            let current = self.create_snapshot();
+            self.redo_stack.push(current);
+            self.apply_snapshot(snapshot);
+            self.pre_interaction_snapshot = None;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn redo(&mut self) -> bool {
+        if let Some(snapshot) = self.redo_stack.pop() {
+            let current = self.create_snapshot();
+            self.undo_stack.push(current);
+            self.apply_snapshot(snapshot);
+            self.pre_interaction_snapshot = None;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn can_undo(&self) -> bool {
+        !self.undo_stack.is_empty()
+    }
+
+    pub fn can_redo(&self) -> bool {
+        !self.redo_stack.is_empty()
+    }
+
     pub fn reset_to_defaults(&mut self) {
+        self.push_undo_checkpoint();
         self.overlay_options = CardOverlayOptions::default();
         self.custom_logo_image = None;
         self.custom_logo_path = None;
@@ -92,6 +260,7 @@ impl CardStudioState {
     }
 
     pub fn add_text_item(&mut self) -> usize {
+        self.push_undo_checkpoint();
         self.overlay_options.details.ensure_items();
         let next_id = self.overlay_options.details.items.iter().map(|i| i.id).max().unwrap_or(0) + 1;
         let count = self.overlay_options.details.items.len();
@@ -117,6 +286,7 @@ impl CardStudioState {
     }
 
     pub fn remove_text_item(&mut self, idx: usize) {
+        self.push_undo_checkpoint();
         self.overlay_options.details.ensure_items();
         if idx < self.overlay_options.details.items.len() {
             self.overlay_options.details.items.remove(idx);
@@ -140,6 +310,7 @@ impl CardStudioState {
         let next_id = self.custom_widgets.iter().map(|w| w.data.id).max().unwrap_or(0) + 1;
         match CustomWidget::from_image_path(path.clone(), next_id, self.custom_widgets.len()) {
             Ok(widget) => {
+                self.push_undo_checkpoint();
                 let name = widget.data.name.clone();
                 let new_idx = self.custom_widgets.len();
                 self.custom_widgets.push(widget);
@@ -152,6 +323,7 @@ impl CardStudioState {
 
     pub fn remove_custom_widget(&mut self, idx: usize) {
         if idx < self.custom_widgets.len() {
+            self.push_undo_checkpoint();
             self.custom_widgets.remove(idx);
             if self.active_layer == ActiveTransformLayer::Widget(idx) {
                 if !self.custom_widgets.is_empty() {
@@ -180,6 +352,7 @@ impl CardStudioState {
         match std::fs::read(&path) {
             Ok(bytes) => match crate::card_studio::workspace::load_image_any_format(&bytes, path.to_str()) {
                 Ok(rgba) => {
+                    self.push_undo_checkpoint();
                     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("png").to_lowercase();
                     self.custom_logo_image = Some(rgba);
                     self.custom_logo_path = Some(path.clone());
@@ -206,6 +379,7 @@ impl CardStudioState {
         match std::fs::read(&path) {
             Ok(bytes) => match crate::card_studio::workspace::load_image_any_format(&bytes, path.to_str()) {
                 Ok(rgba) => {
+                    self.push_undo_checkpoint();
                     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("png").to_lowercase();
                     self.custom_chip_image = Some(rgba);
                     self.custom_chip_path = Some(path.clone());
@@ -232,6 +406,7 @@ impl CardStudioState {
         match std::fs::read(&path) {
             Ok(bytes) => match crate::card_studio::workspace::load_image_any_format(&bytes, path.to_str()) {
                 Ok(rgba) => {
+                    self.push_undo_checkpoint();
                     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("png").to_lowercase();
                     self.custom_finish_image = Some(rgba);
                     self.custom_finish_path = Some(path.clone());
@@ -300,6 +475,7 @@ impl CardStudioState {
                 if let Err(e) = ab_glyph::FontArc::try_from_vec(bytes.clone()) {
                     return Err(format!("Invalid font file (cannot parse TTF/OTF): {e}"));
                 }
+                self.push_undo_checkpoint();
                 let file_name = path
                     .file_name()
                     .and_then(|n| n.to_str())
@@ -385,3 +561,57 @@ impl CardStudioState {
         crate::card_studio::ui::draw_studio_preview(self, ui, skin_texture, is_vi)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_studio_undo_redo() {
+        let mut state = CardStudioState::new();
+        assert!(!state.can_undo());
+        assert!(!state.can_redo());
+
+        // Initial preset is CustomImage
+        assert_eq!(state.overlay_options.bg_preset, CardBackgroundPreset::CustomImage);
+
+        // Step 1: change bg_preset to MatteBlack
+        state.push_undo_checkpoint();
+        state.overlay_options.bg_preset = CardBackgroundPreset::MatteBlack;
+        assert!(state.can_undo());
+        assert!(!state.can_redo());
+
+        // Step 2: change finish to MetallicSheen
+        state.push_undo_checkpoint();
+        state.overlay_options.finish = CardFinish::MetallicSheen;
+
+        // Undo Step 2 -> finish should be Standard, bg should still be MatteBlack
+        assert!(state.undo());
+        assert_eq!(state.overlay_options.finish, CardFinish::Standard);
+        assert_eq!(state.overlay_options.bg_preset, CardBackgroundPreset::MatteBlack);
+        assert!(state.can_redo());
+
+        // Undo Step 1 -> bg should be CustomImage
+        assert!(state.undo());
+        assert_eq!(state.overlay_options.bg_preset, CardBackgroundPreset::CustomImage);
+
+        // Redo Step 1 -> bg should be MatteBlack
+        assert!(state.redo());
+        assert_eq!(state.overlay_options.bg_preset, CardBackgroundPreset::MatteBlack);
+
+        // Redo Step 2 -> finish should be MetallicSheen
+        assert!(state.redo());
+        assert_eq!(state.overlay_options.finish, CardFinish::MetallicSheen);
+        assert!(!state.can_redo());
+
+        // Test Reset to defaults is undoable
+        state.reset_to_defaults();
+        assert_eq!(state.overlay_options.finish, CardFinish::Standard);
+        assert!(state.can_undo());
+
+        // Undo reset -> finish restored to MetallicSheen
+        assert!(state.undo());
+        assert_eq!(state.overlay_options.finish, CardFinish::MetallicSheen);
+    }
+}
+
