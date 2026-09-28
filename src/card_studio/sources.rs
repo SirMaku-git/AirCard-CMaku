@@ -101,9 +101,9 @@ pub fn draw_sources_tab(ui: &mut egui::Ui, is_vi: bool) {
                 .stroke(egui::Stroke::new(1.0_f32, md3::PRIMARY))
                 .show(ui, |ui| {
                     let scope_header = if is_vi {
-                        "⚠️ LƯU Ý VỀ PHẠM VI TÙY BIẾN & AN TOÀN:"
+                        "⚠ LƯU Ý VỀ PHẠM VI TÙY BIẾN & AN TOÀN:"
                     } else {
-                        "⚠️ SCOPE & SAFETY NOTICE:"
+                        "⚠ SCOPE & SAFETY NOTICE:"
                     };
                     ui.label(
                         egui::RichText::new(scope_header)

@@ -138,7 +138,7 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
     studio_accordion_card(
         ui,
         "studio_sec_bg_finish",
-        if is_vi { "🖼️ Nền Thẻ & Phủ Bề Mặt (Finish)" } else { "🖼️ Background & Surface Finish" },
+        if is_vi { "🖼 Nền Thẻ & Phủ Bề Mặt (Finish)" } else { "🖼 Background & Surface Finish" },
         true,
         Some(bg_name),
         |ui| {
@@ -257,7 +257,7 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
     studio_accordion_card(
         ui,
         "studio_sec_brand",
-        if is_vi { "🏷️ Thương Hiệu & Logo" } else { "🏷️ Brand & Logo" },
+        if is_vi { "🏷 Thương Hiệu & Logo" } else { "🏷 Brand & Logo" },
         logo_open,
         Some(brand_status),
         |ui| {
@@ -634,7 +634,7 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
                             });
                         } else {
                             ui.horizontal(|ui| {
-                                ui.label(egui::RichText::new(if is_vi { "ℹ️ Font: Hệ thống (Segoe UI / OCR)" } else { "ℹ️ Font: System default" }).size(10.5).color(md3::ON_SURFACE_VARIANT));
+                                ui.label(egui::RichText::new(if is_vi { "ℹ Font: Hệ thống (Segoe UI / OCR)" } else { "ℹ Font: System default" }).size(10.5).color(md3::ON_SURFACE_VARIANT));
                                 if ui.button(egui::RichText::new(if is_vi { "📁 Tải lên font tùy chỉnh (.ttf, .otf)..." } else { "📁 Upload custom font (.ttf, .otf)..." }).size(11.0).color(md3::PRIMARY).strong())
                                     .on_hover_text(if is_vi { "Chọn file font TTF hoặc OTF bất kỳ từ máy tính của bạn" } else { "Select any TTF or OTF font file from your PC" })
                                     .clicked()
@@ -817,7 +817,7 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
     studio_accordion_card(
         ui,
         "studio_sec_widgets",
-        if is_vi { "🧩 Widget Tùy Chọn (Custom Widgets)" } else { "🧩 Custom Widgets" },
+        if is_vi { "📦 Widget Tùy Chọn (Custom Widgets)" } else { "📦 Custom Widgets" },
         w_open,
         Some(&w_badge),
         |ui| {
@@ -920,20 +920,20 @@ pub fn draw_studio_preview(
         ui.label(egui::RichText::new(layer_hdr).strong().size(11.0).color(md3::ON_SURFACE));
         let layer_buttons: &[(ActiveTransformLayer, &str)] = if is_vi {
             &[
-                (ActiveTransformLayer::Background, "🖼️ Nền"),
+                (ActiveTransformLayer::Background, "🖼 Nền"),
                 (ActiveTransformLayer::Finish, "✨ Phủ bề mặt (Finish)"),
                 (ActiveTransformLayer::Chip, "💳 Chip"),
                 (ActiveTransformLayer::Wave, "📶 Sóng"),
-                (ActiveTransformLayer::Logo, "🏷️ Logo"),
+                (ActiveTransformLayer::Logo, "🏷 Logo"),
                 (ActiveTransformLayer::Details, "🔢 Chữ / Thông tin"),
             ]
         } else {
             &[
-                (ActiveTransformLayer::Background, "🖼️ Background"),
+                (ActiveTransformLayer::Background, "🖼 Background"),
                 (ActiveTransformLayer::Finish, "✨ Surface Finish"),
                 (ActiveTransformLayer::Chip, "💳 Chip"),
                 (ActiveTransformLayer::Wave, "📶 Wave"),
-                (ActiveTransformLayer::Logo, "🏷️ Logo"),
+                (ActiveTransformLayer::Logo, "🏷 Logo"),
                 (ActiveTransformLayer::Details, "🔢 Card Text"),
             ]
         };

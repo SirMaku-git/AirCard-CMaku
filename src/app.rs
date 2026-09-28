@@ -986,6 +986,24 @@ fn setup_custom_fonts(ctx: &egui::Context) {
             .insert(0, "segoeui".to_owned());
     }
 
+    // 2. Windows UI Symbols: Segoe UI Symbol (provides 💾, 📂, 🖼, 🏷, 💳, 📝, 📦, ⚙, ◈, etc.)
+    if let Ok(bytes) = std::fs::read(windows_dir.join("Fonts").join("seguisym.ttf")) {
+        fonts.font_data.insert(
+            "seguisym".to_owned(),
+            egui::FontData::from_owned(bytes).into(),
+        );
+        fonts
+            .families
+            .entry(egui::FontFamily::Proportional)
+            .or_default()
+            .push("seguisym".to_owned());
+        fonts
+            .families
+            .entry(egui::FontFamily::Monospace)
+            .or_default()
+            .push("seguisym".to_owned());
+    }
+
     // 2. Monospace Font with full Unicode & Vietnamese support: Consolas
     if let Ok(bytes) = std::fs::read(windows_dir.join("Fonts").join("consola.ttf")) {
         fonts.font_data.insert(
