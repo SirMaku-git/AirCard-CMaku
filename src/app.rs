@@ -925,43 +925,11 @@ impl AirCardApp {
 
     fn draw_header_device_controls(&mut self, ui: &mut egui::Ui) {
         let language = self.language;
-        let mut next_language = self.language;
-        ui.label(
-            egui::RichText::new(language.text("Language"))
-                .size(11.0)
-                .color(md3::ON_SURFACE_VARIANT),
-        );
-        egui::ComboBox::from_id_salt("language_combo")
-            .selected_text(language.option_label(next_language))
-            .width(115.0)
-            .show_ui(ui, |ui| {
-                ui.selectable_value(
-                    &mut next_language,
-                    Language::English,
-                    language.option_label(Language::English),
-                );
-                ui.selectable_value(
-                    &mut next_language,
-                    Language::SimplifiedChinese,
-                    language.option_label(Language::SimplifiedChinese),
-                );
-                ui.selectable_value(
-                    &mut next_language,
-                    Language::Vietnamese,
-                    language.option_label(Language::Vietnamese),
-                );
-            });
-        if next_language != self.language {
-            self.language = next_language;
-            self.language.save();
-            self.status_msg = self.language.text("Language changed.").to_string();
-        }
 
-        ui.add_space(4.0);
         if m3_button_outlined(ui, language.text("Refresh")) {
             self.refresh_devices();
         }
-        ui.add_space(4.0);
+        ui.add_space(6.0);
         let controls_enabled = !self.is_busy && !self.scanning_syslog;
         let mut next_mode = self.connection_mode;
         ui.add_enabled_ui(controls_enabled, |ui| {
@@ -1317,8 +1285,8 @@ impl eframe::App for AirCardApp {
             )
             .show(ctx, |ui| {
                 let avail_w = ui.available_width();
-                if avail_w < 1140.0 {
-                    // Row 1: App Title & Version (left) + Device & Language controls (right)
+                if avail_w < 980.0 {
+                    // Row 1: App Title & Version (left) + Device controls (right)
                     ui.horizontal(|ui| {
                         ui.label(
                             egui::RichText::new("AirCard-CMaku")
@@ -1410,6 +1378,35 @@ impl eframe::App for AirCardApp {
                         .stroke(egui::Stroke::new(1.0_f32, if self.show_logs_window { md3::PRIMARY } else { md3::OUTLINE_VARIANT }));
                         if ui.add(btn).clicked() {
                             self.show_logs_window = !self.show_logs_window;
+                        }
+
+                        ui.add_space(8.0);
+
+                        let mut next_language = self.language;
+                        egui::ComboBox::from_id_salt("language_combo_bottom")
+                            .selected_text(language.option_label(next_language))
+                            .width(115.0)
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut next_language,
+                                    Language::English,
+                                    language.option_label(Language::English),
+                                );
+                                ui.selectable_value(
+                                    &mut next_language,
+                                    Language::SimplifiedChinese,
+                                    language.option_label(Language::SimplifiedChinese),
+                                );
+                                ui.selectable_value(
+                                    &mut next_language,
+                                    Language::Vietnamese,
+                                    language.option_label(Language::Vietnamese),
+                                );
+                            });
+                        if next_language != self.language {
+                            self.language = next_language;
+                            self.language.save();
+                            self.status_msg = self.language.text("Language changed.").to_string();
                         }
                     });
                 });

@@ -111,11 +111,18 @@ Tệp thực thi đầu ra: `target\release\aircard-cmaku.exe`.
 ---
 
 ## 👥 Tri Ân & Đóng Góp (Credits & Contributors)
-- **[@Lumid-Off](https://github.com/Lumid-Off)**: Tác giả bản Windows Native Rust Port & duy trì upstream `AirCard-Windows`.
-- **[@mak5er](https://github.com/mak5er)**: Tác giả ứng dụng macOS gốc và nghiên cứu kỹ thuật exploit.
+- **[@Lumid-Off](https://github.com/Lumid-Off)**: Tác giả bản Windows Native Rust Port & duy trì upstream `AirCard-Windows` ([GitHub](https://github.com/Lumid-Off) · [Twitter / X](https://x.com/LumidOff)).
+- **[@mak5er](https://github.com/mak5er)**: Tác giả ứng dụng macOS gốc và nghiên cứu kỹ thuật exploit ([GitHub](https://github.com/mak5er) · [Twitter / X](https://x.com/mak5er)).
 - **[0xjohnny (@0xjohnnydev)](https://github.com/0xjohnnydev)**: Tác giả của **AirLift**, mã nguồn gốc vượt sandbox AirTraffic/ATAirlock nền tảng.
+- **awaxiaoyu**: Đóng góp triển khai giao diện và kết nối WiFi transport không dây.
 - **SirMaku**: Phát triển Card Studio tương tác, bộ engine font tiếng Việt, kiến trúc module tách biệt và tối ưu hóa UI.
 - Gói theme bàn phím số lấy cảm hứng từ các dự án cộng đồng [Cowabunga](https://github.com/leminlimez/Cowabunga) & [Nugget](https://github.com/leminlimez/Nugget).
+
+### 💖 Ủng Hộ Tác Giả Gốc (Support Upstream Development)
+Nếu thấy AirCard hữu ích, bạn có thể ủng hộ tác giả gốc Lumid-Off:
+- **TON**: `UQB5jbOhep98IvgKjCIsJ1hHGRh2iWkacAZh9jW2DMIVSWZm`
+- **USDT (TRC20)**: `TLiVnkPZ7mVKwCD9RfE28uVTFk6sD6rux2`
+- **USDT / BNB (BEP20)**: `0x8EA94e79e47FafBCE10E65342D875c86d1019541`
 
 ---
 

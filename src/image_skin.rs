@@ -41,6 +41,7 @@ impl PreparedSkin {
     }
 }
 
+#[allow(dead_code)]
 pub fn crop_uv_for_card(
     source_width: u32,
     source_height: u32,
