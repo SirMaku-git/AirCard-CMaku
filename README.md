@@ -1,4 +1,4 @@
-# AirCard-CMaku (Windows Edition) v1.2.2-3 🎴
+# AirCard-CMaku (Windows Edition) v1.2.4-1 🎴
 
 > **Apple Wallet Card Skinner, Passcode Themer & Decoupled Card Studio for iOS 18+ (No Jailbreak Required)**  
 > Native Windows client written in Rust. Powered by the upstream `airlift` engine by **[@Lumid-Off](https://github.com/Lumid-Off/AirCard-Windows)**.
