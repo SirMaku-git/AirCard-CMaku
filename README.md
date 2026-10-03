@@ -118,11 +118,8 @@ Tệp thực thi đầu ra: `target\release\aircard-cmaku.exe`.
 - **SirMaku**: Phát triển Card Studio tương tác, bộ engine font tiếng Việt, kiến trúc module tách biệt và tối ưu hóa UI.
 - Gói theme bàn phím số lấy cảm hứng từ các dự án cộng đồng [Cowabunga](https://github.com/leminlimez/Cowabunga) & [Nugget](https://github.com/leminlimez/Nugget).
 
-### 💖 Ủng Hộ Tác Giả Gốc (Support Upstream Development)
-Nếu thấy AirCard hữu ích, bạn có thể ủng hộ tác giả gốc Lumid-Off:
-- **TON**: `UQB5jbOhep98IvgKjCIsJ1hHGRh2iWkacAZh9jW2DMIVSWZm`
-- **USDT (TRC20)**: `TLiVnkPZ7mVKwCD9RfE28uVTFk6sD6rux2`
-- **USDT / BNB (BEP20)**: `0x8EA94e79e47FafBCE10E65342D875c86d1019541`
+### 💖 Ủng Hộ Dự Án Gốc (Support Upstream Development)
+Nếu thấy ứng dụng hữu ích, hãy ủng hộ và thả ⭐️ sao cho dự án gốc của tác giả tại [Lumid-Off/AirCard-Windows](https://github.com/Lumid-Off/AirCard-Windows).
 
 ---
 
