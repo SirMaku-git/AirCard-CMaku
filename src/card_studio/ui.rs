@@ -778,7 +778,6 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
 
                 // Modular text items list
                 let mut remove_idx = None;
-                let mut insert_icon_to_idx: Option<(usize, &'static str)> = None;
                 let items_len = state.overlay_options.details.items.len();
                 for idx in 0..items_len {
                     let is_selected = state.active_layer == ActiveTransformLayer::Details && state.selected_text_index == idx;
@@ -854,32 +853,6 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
                                 }
                             });
 
-                            // Row 2.5: Quick Icon Insert Bar
-                            ui.horizontal_wrapped(|ui| {
-                                ui.label(egui::RichText::new(if is_vi { "Chèn icon:" } else { "Insert icon:" }).size(10.0).color(md3::ON_SURFACE_VARIANT));
-                                const QUICK_ICONS: &[(&str, &str)] = &[
-                                    ("💳", "Thẻ thanh toán"),
-                                    ("✈", "Máy bay / Travel"),
-                                    ("⚡", "Tia chớp / Sóng"),
-                                    ("★", "Ngôi sao / VIP"),
-                                    ("🔒", "Bảo mật"),
-                                    ("", "Apple logo"),
-                                    ("◈", "Kim cương"),
-                                    ("✦", "Lấp lánh"),
-                                    ("♥", "Trái tim"),
-                                    ("🏷", "Huy hiệu / Tag"),
-                                    ("🌐", "Toàn cầu"),
-                                    ("👑", "Vương miện"),
-                                    ("✓", "Tích xác thực"),
-                                    ("📶", "Sóng Contactless"),
-                                ];
-                                for &(ic, tip) in QUICK_ICONS {
-                                    if ui.small_button(ic).on_hover_text(tip).clicked() {
-                                        insert_icon_to_idx = Some((idx, ic));
-                                    }
-                                }
-                            });
-
                             ui.add_space(2.0);
 
                             // Row 3: Font preset, Font size, X, Y, Letter spacing
@@ -924,16 +897,6 @@ pub fn draw_studio_sidebar(state: &mut CardStudioState, ui: &mut egui::Ui, is_vi
                             });
                         });
                     ui.add_space(2.0);
-                }
-
-                if let Some((idx, ic)) = insert_icon_to_idx {
-                    state.push_undo_checkpoint();
-                    let it = &mut state.overlay_options.details.items[idx];
-                    if !it.content.is_empty() && !it.content.ends_with(' ') {
-                        it.content.push(' ');
-                    }
-                    it.content.push_str(ic);
-                    overlay_changed = true;
                 }
 
                 if let Some(rm_idx) = remove_idx {
