@@ -819,6 +819,25 @@ fn get_fallback_font() -> Option<&'static FontArc> {
         .as_ref()
 }
 
+fn get_symbol_font() -> Option<&'static FontArc> {
+    static SYMBOL: std::sync::OnceLock<Option<FontArc>> = std::sync::OnceLock::new();
+    SYMBOL
+        .get_or_init(|| {
+            let windows_dir = std::env::var_os("WINDIR")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| std::path::PathBuf::from(r"C:\Windows"));
+            for font_name in ["seguisym.ttf", "seguiemj.ttf"] {
+                if let Ok(bytes) = std::fs::read(windows_dir.join("Fonts").join(font_name)) {
+                    if let Ok(font) = FontArc::try_from_vec(bytes) {
+                        return Some(font);
+                    }
+                }
+            }
+            None
+        })
+        .as_ref()
+}
+
 fn strip_vietnamese_diacritic(c: char) -> char {
     match c {
         'à' | 'á' | 'ả' | 'ã' | 'ạ' | 'ă' | 'ằ' | 'ắ' | 'ẳ' | 'ẵ' | 'ặ' | 'â' | 'ầ' | 'ấ' | 'ẩ' | 'ẫ' | 'ậ' => 'a',
@@ -853,6 +872,7 @@ fn render_text_subpixel(
     let scaled = font.as_scaled(scale);
     let mut cur_x = start_x;
     let fallback = get_fallback_font();
+    let symbol_font = get_symbol_font();
 
     for c in text.nfc() {
         if c == ' ' {
@@ -862,23 +882,18 @@ fn render_text_subpixel(
 
         let (active_font, gid) = if font.glyph_id(c).0 != 0 {
             (font, font.glyph_id(c))
-        } else if let Some(fb) = fallback {
-            if fb.glyph_id(c).0 != 0 {
-                (fb, fb.glyph_id(c))
-            } else {
-                let base = strip_vietnamese_diacritic(c);
-                if font.glyph_id(base).0 != 0 {
-                    (font, font.glyph_id(base))
-                } else if fb.glyph_id(base).0 != 0 {
-                    (fb, fb.glyph_id(base))
-                } else {
-                    (font, font.glyph_id(c))
-                }
-            }
+        } else if let Some(fb) = fallback.filter(|f| f.glyph_id(c).0 != 0) {
+            (fb, fb.glyph_id(c))
+        } else if let Some(sym) = symbol_font.filter(|f| f.glyph_id(c).0 != 0) {
+            (sym, sym.glyph_id(c))
         } else {
             let base = strip_vietnamese_diacritic(c);
             if font.glyph_id(base).0 != 0 {
                 (font, font.glyph_id(base))
+            } else if let Some(fb) = fallback.filter(|f| f.glyph_id(base).0 != 0) {
+                (fb, fb.glyph_id(base))
+            } else if let Some(sym) = symbol_font.filter(|f| f.glyph_id(base).0 != 0) {
+                (sym, sym.glyph_id(base))
             } else {
                 (font, font.glyph_id(c))
             }
@@ -914,6 +929,7 @@ pub fn calculate_text_bounds(
     let ascent = scaled.ascent();
     let descent = scaled.descent(); // negative number in ab_glyph
     let fallback = get_fallback_font();
+    let symbol_font = get_symbol_font();
 
     let mut cur_x = 0.0f32;
     for c in text.nfc() {
@@ -924,23 +940,18 @@ pub fn calculate_text_bounds(
 
         let (active_font, gid) = if font.glyph_id(c).0 != 0 {
             (font, font.glyph_id(c))
-        } else if let Some(fb) = fallback {
-            if fb.glyph_id(c).0 != 0 {
-                (fb, fb.glyph_id(c))
-            } else {
-                let base = strip_vietnamese_diacritic(c);
-                if font.glyph_id(base).0 != 0 {
-                    (font, font.glyph_id(base))
-                } else if fb.glyph_id(base).0 != 0 {
-                    (fb, fb.glyph_id(base))
-                } else {
-                    (font, font.glyph_id(c))
-                }
-            }
+        } else if let Some(fb) = fallback.filter(|f| f.glyph_id(c).0 != 0) {
+            (fb, fb.glyph_id(c))
+        } else if let Some(sym) = symbol_font.filter(|f| f.glyph_id(c).0 != 0) {
+            (sym, sym.glyph_id(c))
         } else {
             let base = strip_vietnamese_diacritic(c);
             if font.glyph_id(base).0 != 0 {
                 (font, font.glyph_id(base))
+            } else if let Some(fb) = fallback.filter(|f| f.glyph_id(base).0 != 0) {
+                (fb, fb.glyph_id(base))
+            } else if let Some(sym) = symbol_font.filter(|f| f.glyph_id(base).0 != 0) {
+                (sym, sym.glyph_id(base))
             } else {
                 (font, font.glyph_id(c))
             }
@@ -1606,5 +1617,23 @@ mod tests {
         );
         // cur_x must have advanced across all characters
         assert!(cur_x > 300.0);
+    }
+
+    #[test]
+    fn test_render_symbols_and_icons() {
+        let mut img = RgbaImage::new(CARD_WIDTH, CARD_HEIGHT);
+        let font = resolve_font(CardFontPreset::ClassicOcr, None, false);
+        let cur_x = render_text_subpixel(
+            &mut img,
+            &font,
+            "💳 1234 ✈ ⚡ ★ ",
+            100.0,
+            100.0,
+            40.0,
+            [255, 255, 255, 255],
+            2.0,
+        );
+        // cur_x must have advanced across symbol characters
+        assert!(cur_x > 250.0);
     }
 }
