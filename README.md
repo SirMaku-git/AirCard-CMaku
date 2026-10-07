@@ -14,6 +14,20 @@
 
 ---
 
+## 📱 Độ Tương Thích iOS / Compatibility (Theo khuyến nghị của tác giả gốc)
+
+> [!IMPORTANT]
+> **Khuyến nghị từ tác giả gốc ([@Lumid-Off](https://github.com/Lumid-Off)):**  
+> **KHÔNG cập nhật lên iOS 27.2 beta 3 trở lên** nếu bạn muốn tiếp tục sử dụng AirCard. Apple đã vá lỗ hổng đồng bộ AirTraffic sync (`airlift`) từ bản beta 3, khiến tính năng nạp thẻ (flashing) không còn hoạt động trên các phiên bản mới hơn.
+
+| Phiên bản iOS / iOS Version | Trạng thái / Status | Ghi chú / Notes |
+| :--- | :--- | :--- |
+| **iOS 18.0 – 27.0.1** | ✅ Hỗ trợ / Supported | Hỗ trợ đầy đủ cho Wallet skins và Lockscreen passcode themes |
+| **iOS 27.2 beta 1 – beta 2** | ✅ Hỗ trợ / Supported | Hoạt động bình thường / Working |
+| **iOS 27.2 beta 3+** | ❌ Đã bị Apple vá / Patched | Apple đã vá lỗ hổng `airlift`. Không thể flash thẻ (Flashing will not work). |
+
+---
+
 ## 🌟 Highlights & Key Features / Tính Năng Nổi Bật
 
 - 🎨 **Decoupled Interactive Card Studio:**
